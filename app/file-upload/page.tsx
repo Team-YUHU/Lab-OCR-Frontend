@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-export default function FileUploadPage () {
-    return (
-        <div className="min-h-screen bg-white p-4 text-slate-900">
-            <div className="h-9 w-3">
-            </div>
-        </div>
-    )
-}
-=======
 import { LabelUpload } from './label-upload';
 
 export default function FileUploadPage() {
@@ -18,4 +8,3 @@ export default function FileUploadPage() {
 		</main>
 	);
 }
->>>>>>> b6ca60081ec6f8192a2efce43f18e8104670d11b
