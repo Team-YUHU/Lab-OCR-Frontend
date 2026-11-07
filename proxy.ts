@@ -1,6 +1,11 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+// Clerk is disabled for now. To re-enable, restore these two lines and remove the pass-through.
+// import { clerkMiddleware } from "@clerk/nextjs/server";
+// export default clerkMiddleware();
+import { NextResponse } from "next/server";
 
-export default clerkMiddleware();
+export default function proxy() {
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
