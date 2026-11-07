@@ -36,7 +36,7 @@ const minecraft = localFont({
 });
 
 export const metadata: Metadata = {
-	title: 'MRG OCR',
+	title: 'MRG Labs OCR',
 	description: 'Scan sample labels and keep every vial in one inventory.',
 };
 
@@ -68,7 +68,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
 								className="h-9 w-[60px] shrink-0 object-contain"
 								priority
 							/>
-							MRG OCR
+							MRG Labs
 						</Link>
 
 						<Link
