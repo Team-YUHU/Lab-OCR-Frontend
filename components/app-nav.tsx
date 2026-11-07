@@ -6,6 +6,7 @@ import {
 	ArchiveIcon,
 	CameraIcon,
 	HouseIcon,
+	Settings2Icon,
 	UploadIcon,
 	type LucideIcon,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
 	{ href: '/camera', label: 'Scan', icon: CameraIcon },
 	{ href: '/file-upload', label: 'Upload', icon: UploadIcon },
 	{ href: '/inventory', label: 'Inventory', icon: ArchiveIcon },
+	{ href: '/settings', label: 'Settings', icon: Settings2Icon },
 ];
 
 function isCurrent(pathname: string | null, href: string) {
@@ -57,7 +59,7 @@ export function BottomNav({ pathname }: { pathname?: string | null }) {
 			aria-label="Main"
 			className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
 		>
-			<ul className="mx-auto grid max-w-md grid-cols-4">
+			<ul className="mx-auto grid max-w-md grid-cols-5">
 				{NAV_ITEMS.map(({ href, label, icon: Icon }) => {
 					const current = isCurrent(pathname ?? null, href);
 					return (

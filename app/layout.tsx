@@ -10,6 +10,7 @@ import {
 	CurrentSidebarNav,
 	SidebarNav,
 } from '@/components/app-nav';
+import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
@@ -32,43 +33,52 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
 	return (
 		<html
 			lang="en"
-			className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+			suppressHydrationWarning
+			className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
 		>
 			<body className="flex min-h-full">
-				<aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r bg-sidebar p-3 md:flex">
-					<Link
-						href="/"
-						className="flex items-center gap-2.5 px-2 pt-2 text-[15px] font-semibold tracking-tight"
-					>
-						<span className="flex size-7 items-center justify-center rounded-full bg-foreground text-background">
-							<FlaskConicalIcon className="size-4" aria-hidden />
-						</span>
-						Lab OCR
-					</Link>
+				<ThemeProvider
+					attribute="class"
+					defaultTheme="dark"
+					disableTransitionOnChange
+					enableSystem={false}
+					themes={['light', 'dark', 'retro', 'mgr']}
+				>
+					<aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r bg-sidebar p-3 md:flex">
+						<Link
+							href="/"
+							className="flex items-center gap-2.5 px-2 pt-2 text-[15px] font-semibold tracking-tight"
+						>
+							<span className="flex size-7 items-center justify-center rounded-full bg-foreground text-background">
+								<FlaskConicalIcon className="size-4" aria-hidden />
+							</span>
+							Lab OCR
+						</Link>
 
-					<Link
-						href="/camera"
-						className="flex items-center gap-3 rounded-full border px-3 py-2 text-sm transition-colors hover:bg-accent"
-					>
-						<SquarePenIcon className="size-4" aria-hidden />
-						New scan
-					</Link>
+						<Link
+							href="/camera"
+							className="flex items-center gap-3 rounded-full border px-3 py-2 text-sm transition-colors hover:bg-accent"
+						>
+							<SquarePenIcon className="size-4" aria-hidden />
+							New scan
+						</Link>
 
-					<Suspense fallback={<SidebarNav />}>
-						<CurrentSidebarNav />
+						<Suspense fallback={<SidebarNav />}>
+							<CurrentSidebarNav />
+						</Suspense>
+
+						<p className="mt-auto px-3 pb-2 text-xs text-muted-foreground">
+							Read sample labels, review them, and keep them in your inventory.
+						</p>
+					</aside>
+
+					<div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">{children}</div>
+
+					<Suspense fallback={<BottomNav />}>
+						<CurrentBottomNav />
 					</Suspense>
-
-					<p className="mt-auto px-3 pb-2 text-xs text-muted-foreground">
-						Read sample labels, review them, and keep them in your inventory.
-					</p>
-				</aside>
-
-				<div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">{children}</div>
-
-				<Suspense fallback={<BottomNav />}>
-					<CurrentBottomNav />
-				</Suspense>
-				<Toaster theme="dark" />
+					<Toaster />
+				</ThemeProvider>
 			</body>
 		</html>
 	);

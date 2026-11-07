@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .mgr *));
 
 @theme inline {
   --color-background: var(--background);
@@ -49,6 +49,7 @@
 }
 
 :root {
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -84,6 +85,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.13 0 0);
   --foreground: oklch(0.97 0 0);
   --card: oklch(0.18 0 0);
@@ -117,6 +119,67 @@
   --sidebar-ring: oklch(0.6 0 0);
 }
 
+.retro {
+  color-scheme: light;
+  --background: #eee7d6;
+  --foreground: #342a20;
+  --card: #fff8e9;
+  --card-foreground: #342a20;
+  --popover: #fff8e9;
+  --popover-foreground: #342a20;
+  --primary: #a44328;
+  --primary-foreground: #fff8e9;
+  --secondary: #e3d6ba;
+  --secondary-foreground: #342a20;
+  --muted: #e9dfc9;
+  --muted-foreground: #71634f;
+  --accent: #d8c99f;
+  --accent-foreground: #342a20;
+  --destructive: #a83227;
+  --border: #cbbd9e;
+  --input: #cbbd9e;
+  --ring: #a44328;
+  --sidebar: #4a563d;
+  --sidebar-foreground: #fff8e9;
+  --sidebar-primary: #e0b363;
+  --sidebar-primary-foreground: #342a20;
+  --sidebar-accent: #5c694d;
+  --sidebar-accent-foreground: #fff8e9;
+  --sidebar-border: #65704f;
+  --sidebar-ring: #e0b363;
+  --radius: 0.35rem;
+}
+
+.mgr {
+  color-scheme: dark;
+  --background: #1d1d1f;
+  --foreground: #f5f5f5;
+  --card: #dedede;
+  --card-foreground: #1c1c1e;
+  --popover: #e6e6e6;
+  --popover-foreground: #1c1c1e;
+  --primary: #263b9d;
+  --primary-foreground: #fff;
+  --secondary: #c9c9cc;
+  --secondary-foreground: #1c1c1e;
+  --muted: #d1d1d3;
+  --muted-foreground: #5e5e63;
+  --accent: #344aa7;
+  --accent-foreground: #fff;
+  --destructive: #b4232c;
+  --border: #a7a7ac;
+  --input: #b6b6ba;
+  --ring: #8798ed;
+  --sidebar: #263b9d;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #dedede;
+  --sidebar-primary-foreground: #1c1c1e;
+  --sidebar-accent: #344aa7;
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: #1b2c7d;
+  --sidebar-ring: #aab6ff;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -126,8 +189,173 @@
   }
   html {
     @apply font-sans;
-    color-scheme: dark;
   }
+  body {
+    transition: background-color 180ms ease, color 180ms ease;
+  }
+  .retro body {
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  .retro aside {
+    border-right-width: 2px;
+  }
+  .mgr aside {
+    border-right-width: 2px;
+  }
+  .retro aside .text-muted-foreground,
+  .retro aside .text-foreground,
+  .mgr aside .text-muted-foreground {
+    color: var(--sidebar-foreground);
+  }
+}
+
+.theme-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.theme-option:hover {
+  transform: translateY(-1px);
+}
+
+.theme-option:focus-within {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.theme-option.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+.theme-preview {
+  display: flex;
+  width: 52px;
+  height: 42px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.theme-preview > span {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+}
+
+.theme-preview > span:first-child {
+  width: 55%;
+}
+
+.theme-preview > span:nth-child(2) {
+  width: 80%;
+}
+
+.theme-preview > span:last-child {
+  width: 65%;
+}
+
+.theme-preview-light {
+  background: #fff;
+}
+
+.theme-preview-light > span {
+  background: #d6d6d9;
+}
+
+.theme-preview-light > span:first-child {
+  background: #35353a;
+}
+
+.theme-preview-dark {
+  background: #1d1d21;
+}
+
+.theme-preview-dark > span {
+  background: #414147;
+}
+
+.theme-preview-dark > span:first-child {
+  background: #f0f0f2;
+}
+
+.theme-preview-retro {
+  background: #eee7d6;
+}
+
+.theme-preview-retro > span {
+  background: #d8c99f;
+}
+
+.theme-preview-retro > span:first-child {
+  background: #4a563d;
+}
+
+.theme-preview-mgr {
+  background: #1d1d1f;
+}
+
+.theme-preview-mgr > span {
+  background: #dedede;
+}
+
+.theme-preview-mgr > span:first-child {
+  background: #263b9d;
+}
+
+.theme-option-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.theme-option-name {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.theme-option-description {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.theme-option-check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.theme-option.is-selected .theme-option-check {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.theme-option-check svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -138,4 +366,3 @@
     transition-duration: 0.01ms !important;
   }
 }
-
