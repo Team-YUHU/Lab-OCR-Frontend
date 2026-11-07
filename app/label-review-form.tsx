@@ -9,51 +9,94 @@ import {
 	type FieldName,
 	type Fields,
 } from './label-csv';
+import {
+	mergeFrameResults,
+	type FrameResult,
+	type MergedResult,
+} from './label-merge';
+import { VideoFrameError, extractFrames, isVideoFile } from './video-frames';
+
+type Preview = { url: string; isVideo: boolean };
 
 export function LabelReviewForm() {
-	const [imageUrl, setImageUrl] = useState<string | null>(null);
+	const [preview, setPreview] = useState<Preview | null>(null);
 	const [fields, setFields] = useState<Fields | null>(null);
 	const [labelType, setLabelType] = useState<string | null>(null);
+	const [alternatives, setAlternatives] = useState<
+		MergedResult['alternatives']
+	>({});
 	const [fileName, setFileName] = useState('');
-	const [isReading, setIsReading] = useState(false);
+	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	// Release the preview's memory when it's replaced or the page closes.
 	useEffect(() => {
 		return () => {
-			if (imageUrl) URL.revokeObjectURL(imageUrl);
+			if (preview) URL.revokeObjectURL(preview.url);
 		};
-	}, [imageUrl]);
+	}, [preview]);
 
-	async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+	async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
 		const file = event.target.files?.[0];
 		// Allows choosing the same file again to retry.
 		event.target.value = '';
 		if (!file) return;
 
-		setImageUrl(URL.createObjectURL(file));
+		const isVideo = isVideoFile(file);
+		setPreview({ url: URL.createObjectURL(file), isVideo });
 		setFields(null);
 		setLabelType(null);
+		setAlternatives({});
 		setError(null);
-		setIsReading(true);
 
 		try {
-			const body = new FormData();
-			body.append('image', file);
+			let images: Blob[] = [file];
+			if (isVideo) {
+				setStatus('Finding the sharpest video frames…');
+				images = await extractFrames(file);
+			}
 
-			const response = await fetch('/api/v1/ocr', { method: 'POST', body });
-			const result = await response.json();
+			// One at a time, because a local model works through them one by one anyway.
+			const results: FrameResult[] = [];
+			let lastError: string | null = null;
 
-			if (!response.ok) {
-				setError(result.error ?? 'Could not read the label');
+			for (const [index, image] of images.entries()) {
+				setStatus(
+					isVideo
+						? `Reading frame ${index + 1} of ${images.length}…`
+						: 'Reading label…',
+				);
+				const body = new FormData();
+				body.append(
+					'image',
+					image,
+					isVideo ? `frame-${index + 1}.jpg` : file.name,
+				);
+
+				const response = await fetch('/api/v1/ocr', { method: 'POST', body });
+				const result = await response.json();
+
+				if (response.ok) results.push(result);
+				else lastError = result.error;
+			}
+
+			if (results.length === 0) {
+				setError(lastError ?? 'Could not read the label');
 				return;
 			}
-			setLabelType(result.labelType);
-			setFields({ ...result.fields, dateReceived: todayLocal() });
-		} catch {
-			setError('Could not reach the server. Please try again.');
+
+			const merged = mergeFrameResults(results);
+			setLabelType(merged.labelType);
+			setAlternatives(merged.alternatives);
+			setFields({ ...merged.fields, dateReceived: todayLocal() });
+		} catch (caught) {
+			setError(
+				caught instanceof VideoFrameError
+					? caught.message
+					: 'Could not reach the server. Please try again.',
+			);
 		} finally {
-			setIsReading(false);
+			setStatus(null);
 		}
 	}
 
@@ -83,27 +126,38 @@ export function LabelReviewForm() {
 	return (
 		<div className="flex flex-col gap-6">
 			<label className="flex flex-col gap-2 text-sm font-medium">
-				Label photo
+				Label photo or video
 				<input
 					type="file"
-					accept="image/png,image/jpeg,image/webp"
-					disabled={isReading}
-					onChange={handleImageChange}
+					accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime,.mov,.m4v"
+					disabled={status !== null}
+					onChange={handleFileChange}
 					className="rounded-md border border-zinc-300 p-2 font-normal disabled:opacity-50 dark:border-zinc-700"
 				/>
 			</label>
 
-			{imageUrl && (
+			{preview?.isVideo && (
+				<video
+					src={preview.url}
+					controls
+					muted
+					playsInline
+					aria-label="Uploaded sample tube label video"
+					className="max-h-64 w-full rounded-md border border-zinc-300 dark:border-zinc-700"
+				/>
+			)}
+
+			{preview && !preview.isVideo && (
 				// A local blob preview, so next/image's optimization doesn't apply.
 				// eslint-disable-next-line @next/next/no-img-element
 				<img
-					src={imageUrl}
+					src={preview.url}
 					alt="Uploaded sample tube label"
 					className="max-h-64 w-full rounded-md border border-zinc-300 object-contain dark:border-zinc-700"
 				/>
 			)}
 
-			{isReading && <p role="status">Reading label…</p>}
+			{status && <p role="status">{status}</p>}
 
 			{error && (
 				<p role="alert" className="text-red-700 dark:text-red-400">
@@ -115,8 +169,8 @@ export function LabelReviewForm() {
 				<form onSubmit={handleSubmit} className="flex flex-col gap-4">
 					<p className="text-sm text-zinc-600 dark:text-zinc-400">
 						{labelType && `Detected a ${labelType} label. `}
-						Check each value against the photo and correct any mistakes. Empty
-						fields stay empty in the CSV.
+						Check each value against the {preview?.isVideo ? 'video' : 'photo'}{' '}
+						and correct any mistakes. Empty fields stay empty in the CSV.
 					</p>
 
 					{CSV_COLUMNS.map(({ name, label }) => (
@@ -129,6 +183,12 @@ export function LabelReviewForm() {
 								onChange={(event) => handleFieldChange(name, event.target.value)}
 								className="rounded-md border border-zinc-300 bg-transparent p-2 font-mono text-base font-normal dark:border-zinc-700"
 							/>
+							{name !== 'dateReceived' && alternatives[name] && (
+								<span className="font-normal text-amber-700 dark:text-amber-400">
+									Video frames disagreed. Also read:{' '}
+									{alternatives[name].join(', ')}
+								</span>
+							)}
 						</label>
 					))}
 
