@@ -99,7 +99,7 @@ function UserIcon() {
   );
 }
 
-export default function Home() {
+export default function InventoryPage() {
   const [categories, setCategories] = useState(initialCategories);
   const [files, setFiles] = useState(initialFiles);
   const [expandedCategoryIds, setExpandedCategoryIds] = useState(
