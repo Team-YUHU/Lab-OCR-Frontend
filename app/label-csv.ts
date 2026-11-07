@@ -15,10 +15,13 @@ function escapeCell(value: string) {
 	return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
-export function buildCsv(fields: Fields) {
+/** Builds the CSV from one label or many, one row each. */
+export function buildCsv(fields: Fields | Fields[]) {
 	const header = CSV_COLUMNS.map((column) => escapeCell(column.label));
-	const row = CSV_COLUMNS.map((column) => escapeCell(fields[column.name]));
-	return `${header.join(',')}\r\n${row.join(',')}\r\n`;
+	const rows = [fields]
+		.flat()
+		.map((row) => CSV_COLUMNS.map((column) => escapeCell(row[column.name])));
+	return [header, ...rows].map((cells) => `${cells.join(',')}\r\n`).join('');
 }
 
 /** Returns a safe file name ending in .csv, or null if nothing usable is left. */

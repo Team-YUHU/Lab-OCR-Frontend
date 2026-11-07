@@ -5,25 +5,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { NativeButton } from '@/components/ui/upload';
+import { UNCATEGORIZED_NAME } from '@/lib/categories';
 
 export type Category = { id: string; name: string };
 
 const byName = (a: Category, b: Category) =>
 	a.name.toLowerCase().localeCompare(b.name.toLowerCase());
 
-/** Choose a category from the shared list, or add a new one to it. */
+/** Choose a category from the shared list, add a new one, or leave it uncategorized. */
 export function CategoryField({
 	value,
 	onChange,
+	adding,
+	onAddingChange,
 }: {
 	value: Category | null;
 	onChange: (category: Category | null) => void;
+	adding: boolean;
+	onAddingChange: (adding: boolean) => void;
 }) {
 	const id = useId();
 	const [categories, setCategories] = useState<Category[] | null>(null);
 	const [loadFailed, setLoadFailed] = useState(false);
 	const [loadAttempt, setLoadAttempt] = useState(0);
-	const [adding, setAdding] = useState(false);
 	const [newName, setNewName] = useState('');
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
@@ -66,7 +70,7 @@ export function CategoryField({
 			);
 			onChange(added);
 			setNewName('');
-			setAdding(false);
+			onAddingChange(false);
 		} catch {
 			setSaveError('Could not reach the server. Please try again.');
 		} finally {
@@ -129,7 +133,7 @@ export function CategoryField({
 					<NativeButton
 						variant="outline"
 						onClick={() => {
-							setAdding(false);
+							onAddingChange(false);
 							setNewName('');
 							setSaveError(null);
 						}}
@@ -164,11 +168,7 @@ export function CategoryField({
 					}
 				>
 					<NativeSelectOption value="">
-						{!categories
-							? 'Loading…'
-							: categories.length
-								? 'Select a category'
-								: 'No categories yet'}
+						{categories ? UNCATEGORIZED_NAME : 'Loading…'}
 					</NativeSelectOption>
 					{categories?.map((category) => (
 						<NativeSelectOption key={category.id} value={category.id}>
@@ -176,7 +176,7 @@ export function CategoryField({
 						</NativeSelectOption>
 					))}
 				</NativeSelect>
-				<NativeButton variant="outline" onClick={() => setAdding(true)}>
+				<NativeButton variant="outline" onClick={() => onAddingChange(true)}>
 					New category
 				</NativeButton>
 			</div>

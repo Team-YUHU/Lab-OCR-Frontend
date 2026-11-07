@@ -1,4 +1,5 @@
 import { NextResponse, connection } from 'next/server';
+import { UNCATEGORIZED_NAME } from '@/lib/categories';
 import { getDb } from '@/lib/db';
 
 const MAX_NAME_LENGTH = 100; // matches the check in db/schema.sql
@@ -30,9 +31,16 @@ export async function POST(request: Request) {
 	}
 
 	const trimmed = typeof name === 'string' ? name.trim() : '';
-	if (!trimmed || trimmed.length > MAX_NAME_LENGTH) {
+	if (!trimmed || trimmed.length > MAX_NAME_LENGTH || trimmed.includes('\0')) {
 		return NextResponse.json(
 			{ error: `Enter a name of 1 to ${MAX_NAME_LENGTH} characters` },
+			{ status: 400 },
+		);
+	}
+
+	if (trimmed.toLowerCase() === UNCATEGORIZED_NAME.toLowerCase()) {
+		return NextResponse.json(
+			{ error: `"${UNCATEGORIZED_NAME}" is reserved. Choose another name.` },
 			{ status: 400 },
 		);
 	}

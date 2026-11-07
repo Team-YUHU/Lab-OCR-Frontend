@@ -1,204 +1,39 @@
-"use client";
-
-import { useState } from "react";
-
-type InventoryFile = {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  description: string;
-  previewTitle: string;
-  previewMessage: string;
-};
-
-const files: InventoryFile[] = [
-  {
-    id: "lab-results",
-    title: "Lab results",
-    date: "Nov 08, 2029",
-    time: "12:00 PM",
-    description: "Lab results and notes from your recent visit.",
-    previewTitle: "Lab results scan",
-    previewMessage: "Sample document · PDF",
-  },
-  {
-    id: "blood-test",
-    title: "Blood test",
-    date: "Nov 06, 2029",
-    time: "9:42 AM",
-    description: "Blood work report with a complete blood count.",
-    previewTitle: "Blood test report",
-    previewMessage: "Sample document · PDF",
-  },
-  {
-    id: "prescription",
-    title: "Prescription",
-    date: "Nov 02, 2029",
-    time: "4:18 PM",
-    description: "Prescription instructions from your care provider.",
-    previewTitle: "Prescription scan",
-    previewMessage: "Sample document · Image",
-  },
-];
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7v5l3 2" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 8v8M8 12h8" />
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="7.5" r="3.5" />
-      <path d="M5 20v-1.5a7 7 0 0 1 14 0V20" />
-    </svg>
-  );
-}
+import { ChevronDownIcon } from 'lucide-react';
+import { HomeComposer } from '@/components/home-composer';
+import { LabelReviewForm } from './label-review-form';
 
 export default function Home() {
-  const [selectedFileId, setSelectedFileId] = useState(files[0].id);
-  const selectedFile = files.find((file) => file.id === selectedFileId) ?? files[0];
+	return (
+		<main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-10">
+			<div className="flex flex-1 flex-col items-center justify-center gap-8 py-10">
+				<div className="flex flex-col items-center gap-2 text-center">
+					<h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+						What are we reading today?
+					</h1>
+					<p className="text-muted-foreground">
+						Scan a sample label, upload a batch, or find a vial.
+					</p>
+				</div>
+				<HomeComposer />
+			</div>
 
-  return (
-    <main className="app-page">
-      <header className="topbar">
-        <a className="brand" href="#inventory" aria-label="Inventory Files home">
-          <span className="brand-mark" aria-hidden="true">I</span>
-          <span>Inventory<span className="brand-divider">-</span>Files</span>
-        </a>
-        <span className="topbar-note">Your documents, in one place</span>
-        <a className="topbar-profile" href="#profile">
-          <UserIcon />
-          <span>My profile</span>
-        </a>
-      </header>
-
-      <div className="workspace" id="inventory">
-        <aside className="inventory-panel" aria-labelledby="inventory-heading">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">YOUR LIBRARY</p>
-              <h1 id="inventory-heading">Inventory</h1>
-            </div>
-            <span className="file-count">
-              {files.length.toString().padStart(2, "0")} files
-            </span>
-          </div>
-
-          <div className="file-list">
-            {files.map((file) => (
-              <button
-                className={`file-card${file.id === selectedFile.id ? " is-active" : ""}`}
-                key={file.id}
-                type="button"
-                aria-pressed={file.id === selectedFile.id}
-                onClick={() => setSelectedFileId(file.id)}
-              >
-                <span className="file-thumbnail" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-                <span className="file-card-copy">
-                  <strong>{file.title}</strong>
-                  <span>{file.date}</span>
-                  <span>{file.time}</span>
-                </span>
-                {file.id === selectedFile.id && (
-                  <span className="active-indicator" aria-hidden="true" />
-                )}
-              </button>
-            ))}
-          </div>
-
-          <a className="add-file-link" href="#add-file">
-            <span className="add-file-icon"><PlusIcon /></span>
-            <span>
-              <strong>Add a new file</strong>
-              <small>Keep everything together</small>
-            </span>
-          </a>
-        </aside>
-
-        <section className="document-panel" id="preview" aria-labelledby="document-title">
-          <div className="document-header">
-            <div>
-              <p className="eyebrow">DOCUMENT PREVIEW</p>
-              <h2 id="document-title">{selectedFile.title}</h2>
-            </div>
-            <span className="date-pill">
-              {selectedFile.date} <span>·</span> {selectedFile.time}
-            </span>
-          </div>
-
-          <div className="document-content">
-            <div
-              className="preview-sheet"
-              role="img"
-              aria-label={`Preview placeholder for ${selectedFile.title}`}
-            >
-              <div className="preview-icon">
-                <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
-                  <rect x="8" y="4.5" width="24" height="31" rx="4" />
-                  <path d="M14 13h12M14 19h12M14 25h7" />
-                </svg>
-              </div>
-              <strong>{selectedFile.previewTitle}</strong>
-              <span>{selectedFile.previewMessage}</span>
-            </div>
-            <div className="description">
-              <div>
-                <p className="eyebrow">NOTES</p>
-                <h3>Description</h3>
-              </div>
-              <p>{selectedFile.description}</p>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <nav className="bottom-nav" aria-label="Main navigation">
-        <a className="nav-item is-current" href="#inventory" aria-current="page">
-          <ClockIcon />
-          <span>Inventory</span>
-        </a>
-        <a className="nav-item nav-add" href="#add-file">
-          <PlusIcon />
-          <span>Add file</span>
-        </a>
-        <a className="nav-item" href="#profile">
-          <UserIcon />
-          <span>Profile</span>
-        </a>
-      </nav>
-      <span className="page-end" id="add-file" />
-      <span className="page-end" id="profile" />
-    </main>
-  );
+			<details className="group rounded-3xl border bg-card">
+				<summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 [&::-webkit-details-marker]:hidden">
+					<span className="flex flex-col gap-0.5">
+						<span className="font-medium">Quick read</span>
+						<span className="text-sm text-muted-foreground">
+							Read one label and download it as a CSV. Nothing is saved.
+						</span>
+					</span>
+					<ChevronDownIcon
+						className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+						aria-hidden
+					/>
+				</summary>
+				<div className="border-t p-5">
+					<LabelReviewForm />
+				</div>
+			</details>
+		</main>
+	);
 }
-
-// import CameraCapture from './Camera';
-// import { LabelReviewForm } from './label-review-form';
-
-// export default function Home() {
-// 	return (
-// 		<main className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-10">
-// 			<h1 className="text-2xl font-semibold">Read a sample label</h1>
-// 			<LabelReviewForm />
-// 			<CameraCapture></CameraCapture>
-// 		</main>
-// 	);
