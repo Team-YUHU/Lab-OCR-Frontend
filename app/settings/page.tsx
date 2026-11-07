@@ -18,12 +18,12 @@ const themes = [
   {
     id: "retro",
     name: "Retro",
-    description: "Warm paper, earthy greens, and vintage accents.",
+    description: "Pixel lettering with muted sage and olive tones.",
   },
   {
     id: "mgr",
-    name: "MGR",
-    description: "Charcoal, cobalt blue, and gray inspired by your reference.",
+    name: "MRG",
+    description: "Navy, white, and light green inspired by MRG Laboratories.",
   },
 ] as const;
 

@@ -2,8 +2,10 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { FlaskConicalIcon, SquarePenIcon } from 'lucide-react';
+import localFont from 'next/font/local';
+import { SquarePenIcon } from 'lucide-react';
 import {
 	BottomNav,
 	CurrentBottomNav,
@@ -24,8 +26,17 @@ const geistMono = Geist_Mono({
 	subsets: ['latin'],
 });
 
+const minecraft = localFont({
+	src: [
+		{ path: './fonts/minecraft-regular.otf', weight: '400' },
+		{ path: './fonts/minecraft-bold.otf', weight: '700' },
+	],
+	variable: '--font-minecraft',
+	display: 'swap',
+});
+
 export const metadata: Metadata = {
-	title: 'Lab OCR',
+	title: 'MRG OCR',
 	description: 'Scan sample labels and keep every vial in one inventory.',
 };
 
@@ -34,7 +45,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
 		<html
 			lang="en"
 			suppressHydrationWarning
-			className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+			className={`${geistSans.variable} ${geistMono.variable} ${minecraft.variable} h-full antialiased`}
 		>
 			<body className="flex min-h-full">
 				<ThemeProvider
@@ -49,10 +60,15 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
 							href="/"
 							className="flex items-center gap-2.5 px-2 pt-2 text-[15px] font-semibold tracking-tight"
 						>
-							<span className="flex size-7 items-center justify-center rounded-full bg-foreground text-background">
-								<FlaskConicalIcon className="size-4" aria-hidden />
-							</span>
-							Lab OCR
+							<Image
+								src="/mrg-logo.png"
+								alt="MRG Laboratories"
+								width={60}
+								height={36}
+								className="h-9 w-[60px] shrink-0 object-contain"
+								priority
+							/>
+							MRG OCR
 						</Link>
 
 						<Link

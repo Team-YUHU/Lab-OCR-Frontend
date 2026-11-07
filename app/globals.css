@@ -121,63 +121,65 @@
 
 .retro {
   color-scheme: light;
-  --background: #eee7d6;
-  --foreground: #342a20;
-  --card: #fff8e9;
-  --card-foreground: #342a20;
-  --popover: #fff8e9;
-  --popover-foreground: #342a20;
-  --primary: #a44328;
-  --primary-foreground: #fff8e9;
-  --secondary: #e3d6ba;
-  --secondary-foreground: #342a20;
-  --muted: #e9dfc9;
-  --muted-foreground: #71634f;
-  --accent: #d8c99f;
-  --accent-foreground: #342a20;
-  --destructive: #a83227;
-  --border: #cbbd9e;
-  --input: #cbbd9e;
-  --ring: #a44328;
-  --sidebar: #4a563d;
-  --sidebar-foreground: #fff8e9;
-  --sidebar-primary: #e0b363;
-  --sidebar-primary-foreground: #342a20;
-  --sidebar-accent: #5c694d;
-  --sidebar-accent-foreground: #fff8e9;
-  --sidebar-border: #65704f;
-  --sidebar-ring: #e0b363;
-  --radius: 0.35rem;
+  --font-geist-sans: var(--font-minecraft);
+  --font-geist-mono: var(--font-minecraft);
+  --background: #a0a389;
+  --foreground: #252914;
+  --card: #a5a88e;
+  --card-foreground: #252914;
+  --popover: #a5a88e;
+  --popover-foreground: #252914;
+  --primary: #252914;
+  --primary-foreground: #a0a389;
+  --secondary: #898d72;
+  --secondary-foreground: #252914;
+  --muted: #929678;
+  --muted-foreground: #454a30;
+  --accent: #85896c;
+  --accent-foreground: #252914;
+  --destructive: #704c3f;
+  --border: #30351d;
+  --input: #656b4d;
+  --ring: #515735;
+  --sidebar: #969a7e;
+  --sidebar-foreground: #252914;
+  --sidebar-primary: #252914;
+  --sidebar-primary-foreground: #a0a389;
+  --sidebar-accent: #898d72;
+  --sidebar-accent-foreground: #252914;
+  --sidebar-border: #454a30;
+  --sidebar-ring: #515735;
+  --radius: 0.25rem;
 }
 
 .mgr {
-  color-scheme: dark;
-  --background: #1d1d1f;
-  --foreground: #f5f5f5;
-  --card: #dedede;
-  --card-foreground: #1c1c1e;
-  --popover: #e6e6e6;
-  --popover-foreground: #1c1c1e;
-  --primary: #263b9d;
+  color-scheme: light;
+  --background: #f5f6f8;
+  --foreground: #20365f;
+  --card: #fff;
+  --card-foreground: #20365f;
+  --popover: #fff;
+  --popover-foreground: #20365f;
+  --primary: #20365f;
   --primary-foreground: #fff;
-  --secondary: #c9c9cc;
-  --secondary-foreground: #1c1c1e;
-  --muted: #d1d1d3;
-  --muted-foreground: #5e5e63;
-  --accent: #344aa7;
-  --accent-foreground: #fff;
+  --secondary: #e8ebf0;
+  --secondary-foreground: #20365f;
+  --muted: #eef0f3;
+  --muted-foreground: #566784;
+  --accent: #78a94b;
+  --accent-foreground: #20365f;
   --destructive: #b4232c;
-  --border: #a7a7ac;
-  --input: #b6b6ba;
-  --ring: #8798ed;
-  --sidebar: #263b9d;
-  --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #dedede;
-  --sidebar-primary-foreground: #1c1c1e;
-  --sidebar-accent: #344aa7;
-  --sidebar-accent-foreground: #fff;
-  --sidebar-border: #1b2c7d;
-  --sidebar-ring: #aab6ff;
+  --border: #dce1e8;
+  --input: #cbd2dd;
+  --ring: #78a94b;
+  --sidebar: #fff;
+  --sidebar-foreground: #20365f;
+  --sidebar-primary: #78a94b;
+  --sidebar-primary-foreground: #20365f;
+  --sidebar-accent: #edf2e8;
+  --sidebar-accent-foreground: #20365f;
+  --sidebar-border: #dce1e8;
+  --sidebar-ring: #78a94b;
 }
 
 @layer base {
@@ -193,9 +195,6 @@
   body {
     transition: background-color 180ms ease, color 180ms ease;
   }
-  .retro body {
-    font-family: Georgia, "Times New Roman", serif;
-  }
   .retro aside {
     border-right-width: 2px;
   }
@@ -203,8 +202,10 @@
     border-right-width: 2px;
   }
   .retro aside .text-muted-foreground,
-  .retro aside .text-foreground,
   .mgr aside .text-muted-foreground {
+    color: var(--sidebar-foreground);
+  }
+  .retro aside .text-foreground {
     color: var(--sidebar-foreground);
   }
 }
@@ -295,27 +296,29 @@
 }
 
 .theme-preview-retro {
-  background: #eee7d6;
+  background: #a0a389;
+  border-color: #30351d;
 }
 
 .theme-preview-retro > span {
-  background: #d8c99f;
+  background: #898d72;
 }
 
 .theme-preview-retro > span:first-child {
-  background: #4a563d;
+  background: #252914;
 }
 
 .theme-preview-mgr {
-  background: #1d1d1f;
+  background: #f5f6f8;
+  border-color: #dce1e8;
 }
 
 .theme-preview-mgr > span {
-  background: #dedede;
+  background: #78a94b;
 }
 
 .theme-preview-mgr > span:first-child {
-  background: #263b9d;
+  background: #20365f;
 }
 
 .theme-option-copy {
