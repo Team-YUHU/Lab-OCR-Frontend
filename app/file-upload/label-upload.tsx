@@ -9,7 +9,7 @@ import {
 	type UploadItem as UploadItemData,
 } from '@uploadcn/core';
 import { useFilePreview, useUploadContext } from '@uploadcn/react';
-import { CheckIcon, CircleAlertIcon, ScanTextIcon } from 'lucide-react';
+import { CheckIcon, CircleAlertIcon, ScanTextIcon, XIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,7 @@ import {
 	UploadModalHeader,
 	UploadModalTitle,
 } from '@/components/ui/upload';
+import { UNCATEGORIZED_NAME } from '@/lib/categories';
 import {
 	CSV_COLUMNS,
 	todayLocal,
@@ -48,16 +49,47 @@ const ACCEPT =
 const MAX_BYTES = 50 * 1024 * 1024; // matches the OCR route's limit
 const MAX_FILES = 20;
 
-// Nothing stores uploads yet, so files stay in the browser and only go to the OCR route.
+// Files stay in the browser and only go to the OCR route. Confirmed values go to the database.
 const adapter = localAdapter();
 
 type Alternatives = Partial<Record<FieldName, string[]>>;
 type LabelRead = {
 	fields: Fields;
 	alternatives: Alternatives;
-	/** Which project the vial belongs to. Not one of the CSV's own columns. */
+	labelType: string | null;
+	/** Which project the vial belongs to, or null for uncategorized. Not a CSV column. */
 	category: Category | null;
+	/** The saved row, once confirmed. Editing updates it rather than adding another. */
+	vialId: string | null;
 };
+
+/** Saves a confirmed label and returns the vial's id. Throws with a message to show. */
+async function saveVial(
+	item: UploadItemData,
+	label: LabelRead,
+	fields: Fields,
+	category: Category | null,
+): Promise<string> {
+	const { vialId, labelType } = label;
+	let response: Response;
+	try {
+		response = await fetch(`/api/v1/vials${vialId ? `/${vialId}` : ''}`, {
+			method: vialId ? 'PUT' : 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				categoryId: category?.id ?? null,
+				fields,
+				labelType,
+				fileName: item.file.name.slice(0, 255),
+			}),
+		});
+	} catch {
+		throw new Error('Could not reach the server. Please try again.');
+	}
+	const result = await response.json().catch(() => null);
+	if (!response.ok) throw new Error(result?.error ?? 'Could not save the vial');
+	return result.vial.id;
+}
 
 /** Reads a label through the OCR route. */
 async function readLabel(file: File, signal: AbortSignal): Promise<LabelRead> {
@@ -87,11 +119,13 @@ async function readLabel(file: File, signal: AbortSignal): Promise<LabelRead> {
 		throw new Error(lastError ?? 'Could not read the label');
 	}
 
-	const { fields, alternatives } = mergeFrameResults(results);
+	const { fields, alternatives, labelType } = mergeFrameResults(results);
 	return {
 		fields: { ...fields, dateReceived: '' },
 		alternatives,
+		labelType,
 		category: null,
+		vialId: null,
 	};
 }
 
@@ -196,18 +230,29 @@ function ReviewForm({
 	item: UploadItemData;
 	label: LabelRead;
 	onCancel: () => void;
-	onConfirm: (fields: Fields, category: Category) => void;
+	onConfirm: (fields: Fields, category: Category | null) => Promise<void>;
 }) {
 	const [fields, setFields] = useState<Fields>({
 		...label.fields,
 		dateReceived: label.fields.dateReceived || todayLocal(),
 	});
 	const [category, setCategory] = useState(label.category);
+	const [addingCategory, setAddingCategory] = useState(false);
+	const [saving, setSaving] = useState(false);
+	const [saveError, setSaveError] = useState<string | null>(null);
 	const previewUrl = (item.result as LocalUploadResult).url;
 
-	function handleSubmit(event: FormEvent<HTMLFormElement>) {
+	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (category) onConfirm(fields, category);
+		if (addingCategory || saving) return;
+		setSaving(true);
+		setSaveError(null);
+		try {
+			await onConfirm(fields, category);
+		} catch (error) {
+			setSaveError((error as Error).message);
+			setSaving(false);
+		}
 	}
 
 	return (
@@ -240,7 +285,12 @@ function ReviewForm({
 			)}
 
 			<form onSubmit={handleSubmit} className="flex flex-col gap-4">
-				<CategoryField value={category} onChange={setCategory} />
+				<CategoryField
+					value={category}
+					onChange={setCategory}
+					adding={addingCategory}
+					onAddingChange={setAddingCategory}
+				/>
 				<div className="grid gap-3 sm:grid-cols-2">
 					{CSV_COLUMNS.map(({ name, label: fieldLabel }) => (
 						<Label key={name} className="flex-col items-start gap-1.5">
@@ -262,15 +312,87 @@ function ReviewForm({
 						</Label>
 					))}
 				</div>
+				{saveError && (
+					<p role="alert" className="text-sm text-destructive">
+						{saveError}
+					</p>
+				)}
 				<UploadModalFooter>
 					<NativeButton variant="outline" onClick={onCancel}>
 						Cancel
 					</NativeButton>
-					<NativeButton type="submit" disabled={!category}>
-						Confirm
+					{/* Disabled mid-add, so a half-typed category can't save as uncategorized. */}
+					<NativeButton type="submit" disabled={addingCategory || saving}>
+						{saving ? 'Saving…' : 'Confirm'}
 					</NativeButton>
 				</UploadModalFooter>
 			</form>
+		</>
+	);
+}
+
+/** The ✕ on a saved vial: deletes it from the database, then removes the row. */
+function DeleteVial({
+	item,
+	vialId,
+}: {
+	item: UploadItemData;
+	vialId: string;
+}) {
+	const { uploader } = useUploadContext();
+	const [open, setOpen] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+
+	async function handleDelete() {
+		setDeleting(true);
+		try {
+			const response = await fetch(`/api/v1/vials/${vialId}`, {
+				method: 'DELETE',
+			});
+			// 404 means it's already gone, which is what was asked for.
+			if (!response.ok && response.status !== 404) throw new Error();
+			uploader.remove(item.id);
+			toast.success('Vial deleted', { description: item.file.name });
+		} catch {
+			setOpen(false);
+			setDeleting(false);
+			toast.error('Could not delete the vial', {
+				description: `${item.file.name} is still saved. Please try again.`,
+			});
+		}
+	}
+
+	return (
+		<>
+			<NativeButton
+				variant="ghost"
+				size="icon-xs"
+				aria-label={`Delete ${item.file.name}`}
+				onClick={() => setOpen(true)}
+			>
+				<XIcon />
+			</NativeButton>
+			<UploadModal open={open} onOpenChange={setOpen}>
+				<UploadModalHeader>
+					<UploadModalTitle>Delete this vial?</UploadModalTitle>
+					<UploadModalDescription>
+						{item.file.name} will be permanently removed from the database. This
+						can&apos;t be undone.
+					</UploadModalDescription>
+				</UploadModalHeader>
+				<UploadModalFooter>
+					<NativeButton variant="outline" onClick={() => setOpen(false)}>
+						Cancel
+					</NativeButton>
+					<NativeButton
+						variant="destructive"
+						disabled={deleting}
+						onClick={() => void handleDelete()}
+					>
+						{deleting ? 'Deleting…' : 'Delete'}
+					</NativeButton>
+				</UploadModalFooter>
+			</UploadModal>
 		</>
 	);
 }
@@ -286,13 +408,18 @@ function LabelRow({ item }: { item: UploadItemData }) {
 			? (item.issues[0]?.message ??
 				item.error?.message ??
 				'Could not read the label')
-			: status === 'confirmed' && label?.category
-				? `Confirmed · ${label.category.name}`
+			: status === 'confirmed'
+				? `Confirmed · ${label?.category?.name ?? UNCATEGORIZED_NAME}`
 				: STATUS_TEXT[status];
 
-	function handleConfirm(fields: Fields, category: Category) {
+	async function handleConfirm(fields: Fields, category: Category | null) {
+		if (!label) return;
+		const vialId = await saveVial(item, label, fields, category);
 		uploader.update(item.id, {
-			meta: { label: { fields, alternatives: {}, category }, confirmed: true },
+			meta: {
+				label: { ...label, fields, alternatives: {}, category, vialId },
+				confirmed: true,
+			},
 		});
 		setOpen(false);
 		toast.success('Label confirmed', {
@@ -349,7 +476,11 @@ function LabelRow({ item }: { item: UploadItemData }) {
 					{status === 'confirmed' ? 'Edit' : 'Confirm'}
 				</NativeButton>
 				<UploadItemRetry />
-				<UploadItemRemove />
+				{label?.vialId ? (
+					<DeleteVial item={item} vialId={label.vialId} />
+				) : (
+					<UploadItemRemove />
+				)}
 			</div>
 
 			{label && (
