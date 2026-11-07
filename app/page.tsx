@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type HistoryFile = {
+type InventoryFile = {
   id: string;
   title: string;
   date: string;
@@ -12,7 +12,7 @@ type HistoryFile = {
   previewMessage: string;
 };
 
-const files: HistoryFile[] = [
+const files: InventoryFile[] = [
   {
     id: "lab-results",
     title: "Lab results",
@@ -76,9 +76,9 @@ export default function Home() {
   return (
     <main className="app-page">
       <header className="topbar">
-        <a className="brand" href="#history" aria-label="History Files home">
-          <span className="brand-mark" aria-hidden="true">H</span>
-          <span>History<span className="brand-divider">-</span>Files</span>
+        <a className="brand" href="#inventory" aria-label="Inventory Files home">
+          <span className="brand-mark" aria-hidden="true">I</span>
+          <span>Inventory<span className="brand-divider">-</span>Files</span>
         </a>
         <span className="topbar-note">Your documents, in one place</span>
         <a className="topbar-profile" href="#profile">
@@ -87,12 +87,12 @@ export default function Home() {
         </a>
       </header>
 
-      <div className="workspace" id="history">
-        <aside className="history-panel" aria-labelledby="history-heading">
+      <div className="workspace" id="inventory">
+        <aside className="inventory-panel" aria-labelledby="inventory-heading">
           <div className="section-heading">
             <div>
               <p className="eyebrow">YOUR LIBRARY</p>
-              <h1 id="history-heading">History</h1>
+              <h1 id="inventory-heading">Inventory</h1>
             </div>
             <span className="file-count">
               {files.length.toString().padStart(2, "0")} files
@@ -172,9 +172,9 @@ export default function Home() {
       </div>
 
       <nav className="bottom-nav" aria-label="Main navigation">
-        <a className="nav-item is-current" href="#history" aria-current="page">
+        <a className="nav-item is-current" href="#inventory" aria-current="page">
           <ClockIcon />
-          <span>History</span>
+          <span>Inventory</span>
         </a>
         <a className="nav-item nav-add" href="#add-file">
           <PlusIcon />

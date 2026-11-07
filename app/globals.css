@@ -119,7 +119,7 @@ a:focus-visible {
   box-shadow: 0 20px 60px #00000036;
 }
 
-.history-panel,
+.inventory-panel,
 .document-panel {
   min-width: 0;
   border-radius: 22px;
@@ -127,7 +127,7 @@ a:focus-visible {
   color: var(--foreground);
 }
 
-.history-panel {
+.inventory-panel {
   display: flex;
   flex-direction: column;
   padding: 26px 20px 20px;
@@ -449,7 +449,7 @@ a:focus-visible {
     box-shadow: none;
   }
 
-  .history-panel {
+  .inventory-panel {
     padding: 13px 10px 0;
     border-radius: 25px 25px 0 0;
     background: var(--surface);

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "History-Files | Your document library",
-  description: "Keep your scanned documents and notes in one simple history.",
+  title: "Inventory-Files | Your document library",
+  description: "Keep your scanned documents and notes in one simple inventory.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
