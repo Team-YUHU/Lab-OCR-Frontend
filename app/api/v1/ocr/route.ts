@@ -12,11 +12,6 @@ if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobe.path);
 
 // Any OpenAI-compatible API, set in .env.local: Gemini for demos, Ollama for tests.
-const client = new OpenAI({
-	apiKey: process.env.API_KEY,
-	baseURL: process.env.BASE_URL,
-});
-
 const MODEL = process.env.MODEL ?? 'gemini-3.8-flash';
 const MAX_BYTES = 50 * 1024 * 1024;
 const FRAMES_TO_SEND = 8; // the tube rotates, so the fields are spread across frames
@@ -173,6 +168,14 @@ async function readSampleIdFromBarcode(
 }
 
 export async function POST(request: Request) {
+	const apiKey = process.env.API_KEY;
+	if (!apiKey) {
+		return NextResponse.json(
+			{ error: 'OCR service is not configured. Set API_KEY to enable OCR.' },
+			{ status: 503 },
+		);
+	}
+
 	let file: FormDataEntryValue | null;
 
 	try {
@@ -203,6 +206,10 @@ export async function POST(request: Request) {
 	}
 
 	try {
+		const client = new OpenAI({
+			apiKey,
+			baseURL: process.env.BASE_URL,
+		});
 		const buffer = Buffer.from(await file.arrayBuffer());
 		const isVideo = file.type.startsWith('video/');
 		const images = isVideo ? await extractFrames(buffer, file.type) : [buffer];
