@@ -25,21 +25,23 @@ export default function LogInPage() {
         setMessage("Work sign-in is not connected to an authentication service yet.");
     }
 
+    // min-h-12 gives a comfortable tap target on phones
     const field =
-        "flex items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-blue-900 transition-colors focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100";
+        "flex min-h-12 items-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3 text-blue-900 transition-colors focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 sm:py-3.5";
+    // text-base (16px) on phones stops iOS from zooming in when a field is tapped; min-w-0 stops overflow
     const input =
-        "w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400";
+        "min-w-0 w-full bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400 sm:text-sm";
 
     return (
-        <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-blue-950 via-blue-800 to-sky-600 p-4 sm:p-8">
+        <main className="relative flex min-h-[100dvh] items-center justify-center overflow-x-hidden bg-gradient-to-br from-blue-950 via-blue-800 to-sky-600 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:p-8">
             <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
-            <div className="relative w-full max-w-md rounded-3xl border border-white/60 bg-white p-6 text-slate-900 shadow-2xl sm:p-9">
-                <div className="mb-8 text-center">
+            <div className="relative w-full max-w-md rounded-3xl border border-white/60 bg-white p-5 text-slate-900 shadow-2xl min-[400px]:p-6 sm:p-9">
+                <div className="mb-6 text-center sm:mb-8">
                     <h1 className="text-2xl font-bold text-blue-950">Work Sign In</h1>
                     <p className="mt-2 text-sm text-slate-600">Sign in with your work username and password.</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-5">
                     <div>
                         <label htmlFor="username" className="mb-2 block text-sm font-medium text-slate-700">Work username</label>
                         <div className={field}>
@@ -48,6 +50,8 @@ export default function LogInPage() {
                                 id="username"
                                 type="text"
                                 autoComplete="username"
+                                autoCapitalize="none"
+                                autoCorrect="off"
                                 required
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
@@ -75,7 +79,7 @@ export default function LogInPage() {
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
                                 aria-label={showPassword ? "Hide password" : "Show password"}
-                                className="text-slate-500 transition-colors hover:text-blue-800"
+                                className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:text-blue-800 active:bg-slate-100"
                             >
                                 {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                             </button>
@@ -87,7 +91,7 @@ export default function LogInPage() {
 
                     <button
                         type="submit"
-                        className="mt-1 w-full rounded-xl bg-blue-800 px-5 py-4 font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-900 hover:shadow-xl active:scale-[0.98]"
+                        className="mt-1 min-h-12 w-full rounded-xl bg-blue-800 px-5 py-4 font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-900 hover:shadow-xl active:scale-[0.98]"
                     >
                         Sign In
                     </button>

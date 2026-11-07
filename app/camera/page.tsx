@@ -27,10 +27,10 @@ function LoadingScreen() {
     }, []);
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-blue-950 p-6 text-white">
-            <div className="mb-8 h-20 w-20 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-            <h1 className="text-3xl font-bold">Loading</h1>
-            <p className="mt-2 text-blue-200">Getting your scanner ready...</p>
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center overflow-x-hidden bg-blue-950 p-6 text-center text-white">
+            <div className="mb-6 h-16 w-16 animate-spin rounded-full border-4 border-white/20 border-t-white sm:mb-8 sm:h-20 sm:w-20" />
+            <h1 className="text-2xl font-bold sm:text-3xl">Loading</h1>
+            <p className="mt-2 text-sm text-blue-200 sm:text-base">Getting your scanner ready...</p>
 
             <div className="mt-8 h-3 w-full max-w-xs overflow-hidden rounded-full bg-white/20">
                 <div
@@ -71,8 +71,10 @@ export default function Home() {
     const panel = dark ? "bg-slate-800 text-white" : "bg-white text-slate-900";
     const secondary = dark ? "bg-slate-700" : "bg-slate-100";
     const muted = dark ? "text-slate-400" : "text-slate-500";
+
+    // text-base (16px) stops iOS from zooming in when an input is tapped; min-w-0 stops date inputs overflowing
     const inputClass =
-        "w-full rounded-2xl border-2 border-blue-900 bg-white p-4 text-slate-900 outline-none transition-all focus:scale-[1.01] focus:shadow-lg focus:ring-2 focus:ring-blue-400";
+        "block w-full min-w-0 rounded-2xl border-2 border-blue-900 bg-white p-3.5 text-base text-slate-900 outline-none transition-all focus:scale-[1.01] focus:shadow-lg focus:ring-2 focus:ring-blue-400 sm:p-4";
 
     const navItems = [
         { name: "History", icon: <ClockIcon /> },
@@ -99,11 +101,11 @@ export default function Home() {
     if (loading) return <LoadingScreen />;
 
     return (
-        <div className={`min-h-screen ${bg} p-3 pb-28 transition-colors duration-300 sm:p-6 md:pb-6 lg:p-8`}>
-            <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl gap-5">
+        <div className={`min-h-[100dvh] overflow-x-hidden ${bg} p-3 pb-28 transition-colors duration-300 sm:p-6 sm:pb-32 md:pb-6 lg:p-8`}>
+            <div className="mx-auto flex min-h-[calc(100dvh-8rem)] max-w-7xl gap-5 md:min-h-[calc(100dvh-3rem)]">
 
                 {/* SIDEBAR */}
-                <aside className={`hidden w-64 shrink-0 flex-col rounded-3xl p-6 shadow-xl transition-colors duration-300 md:flex ${panel}`}>
+                <aside className={`hidden w-56 shrink-0 flex-col rounded-3xl p-6 shadow-xl transition-colors duration-300 md:flex lg:w-64 ${panel}`}>
                     <h1 className="mb-12 text-2xl font-bold">Sample Scanner</h1>
 
                     <nav className="flex flex-col gap-4">
@@ -136,20 +138,20 @@ export default function Home() {
 
                     {page === "Scan" && (
                         <form onSubmit={handleSubmit}>
-                            <header className="mb-8">
-                                <h1 className="text-3xl font-bold">Scan Medicine Label</h1>
-                                <p className={`mt-2 ${muted}`}>
+                            <header className="mb-6 sm:mb-8">
+                                <h1 className="text-2xl font-bold sm:text-3xl">Scan Medicine Label</h1>
+                                <p className={`mt-2 text-sm sm:text-base ${muted}`}>
                                     Capture the bottle, then fill in the sample details.
                                 </p>
                             </header>
 
                             {/* CAMERA / MEDIA CONTAINER */}
-                            <section className="mb-8 rounded-3xl bg-blue-950 p-6 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl sm:p-10">
+                            <section className="mb-6 rounded-3xl bg-blue-950 p-4 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl sm:mb-8 sm:p-10">
                                 <div className="flex flex-col items-center">
                                     {/* Viewfinder: shows an image or video once one exists */}
-                                    <div className="relative aspect-[3/4] w-full max-w-sm overflow-hidden rounded-2xl bg-slate-300">
+                                    <div className="relative aspect-[3/4] max-h-[65dvh] w-full max-w-sm overflow-hidden rounded-2xl bg-slate-300">
                                         {media?.type === "video" && (
-                                            <video src={media.src} controls className="h-full w-full object-cover" />
+                                            <video src={media.src} controls playsInline className="h-full w-full object-cover" />
                                         )}
                                         {media?.type === "image" && (
                                             // eslint-disable-next-line @next/next/no-img-element
@@ -162,20 +164,20 @@ export default function Home() {
                                         )}
 
                                         {/* Corner brackets */}
-                                        <span className="pointer-events-none absolute left-3 top-3 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-black" />
-                                        <span className="pointer-events-none absolute right-3 top-3 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-black" />
-                                        <span className="pointer-events-none absolute bottom-3 left-3 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-black" />
-                                        <span className="pointer-events-none absolute bottom-3 right-3 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-black" />
+                                        <span className="pointer-events-none absolute left-3 top-3 h-7 w-7 rounded-tl-lg border-l-4 border-t-4 border-black sm:h-8 sm:w-8" />
+                                        <span className="pointer-events-none absolute right-3 top-3 h-7 w-7 rounded-tr-lg border-r-4 border-t-4 border-black sm:h-8 sm:w-8" />
+                                        <span className="pointer-events-none absolute bottom-3 left-3 h-7 w-7 rounded-bl-lg border-b-4 border-l-4 border-black sm:h-8 sm:w-8" />
+                                        <span className="pointer-events-none absolute bottom-3 right-3 h-7 w-7 rounded-br-lg border-b-4 border-r-4 border-black sm:h-8 sm:w-8" />
                                     </div>
 
-                                    <div className="mt-6 flex items-center gap-6">
+                                    <div className="mt-6 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
                                         {/* Record button */}
                                         <button
                                             type="button"
                                             onClick={() => setRecording(!recording)}
                                             aria-pressed={recording}
                                             aria-label={recording ? "Stop recording" : "Start recording"}
-                                            className="flex h-24 w-24 items-center justify-center rounded-full border-8 border-white bg-white transition-transform duration-300 hover:scale-110 active:scale-95"
+                                            className="flex h-20 w-20 items-center justify-center rounded-full border-8 border-white bg-white transition-transform duration-300 hover:scale-110 active:scale-95 sm:h-24 sm:w-24"
                                         >
                                             <span className={`flex h-full w-full items-center justify-center rounded-full text-[10px] font-bold text-white transition-colors ${recording ? "bg-red-600" : "bg-black"}`}>
                                                 {recording ? "STOP" : "RECORD"}
@@ -183,7 +185,7 @@ export default function Home() {
                                         </button>
 
                                         {/* Upload instead of recording */}
-                                        <label className="cursor-pointer rounded-full border-2 border-white bg-white px-6 py-3 font-bold text-blue-950 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                                        <label className="flex min-h-12 cursor-pointer items-center rounded-full border-2 border-white bg-white px-6 py-3 font-bold text-blue-950 shadow-md transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95">
                                             Upload
                                             <input type="file" accept="image/*,video/*" onChange={handleFile} className="sr-only" />
                                         </label>
@@ -192,10 +194,10 @@ export default function Home() {
                             </section>
 
                             {/* SAMPLE DETAILS CONTAINER */}
-                            <section className={`mb-8 rounded-3xl p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:p-8 ${secondary}`}>
-                                <h2 className="mb-6 text-2xl font-bold">Sample Details</h2>
+                            <section className={`mb-6 rounded-3xl p-4 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:mb-8 sm:p-8 ${secondary}`}>
+                                <h2 className="mb-5 text-xl font-bold sm:mb-6 sm:text-2xl">Sample Details</h2>
 
-                                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
                                     <div className="sm:col-span-2">
                                         <label className="mb-2 block font-semibold">Category</label>
                                         <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
@@ -214,19 +216,19 @@ export default function Home() {
 
                                     <div>
                                         <label className="mb-2 block font-semibold">Date</label>
-                                        <input type="date" value={sampleDate} onChange={(e) => setSampleDate(e.target.value)} className={inputClass} />
+                                        <input type="date" value={sampleDate} onChange={(e) => setSampleDate(e.target.value)} className={`${inputClass} min-h-[3.5rem]`} />
                                     </div>
 
                                     <div className="sm:col-span-2">
                                         <label className="mb-2 block font-semibold">Sample Date Received</label>
-                                        <input type="date" value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} className={inputClass} />
+                                        <input type="date" value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} className={`${inputClass} min-h-[3.5rem]`} />
                                     </div>
                                 </div>
                             </section>
 
                             {/* MACHINE CONTAINER */}
-                            <section className={`mb-8 rounded-3xl p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:p-8 ${secondary}`}>
-                                <h2 className="mb-6 text-2xl font-bold">Machine</h2>
+                            <section className={`mb-6 rounded-3xl p-4 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:mb-8 sm:p-8 ${secondary}`}>
+                                <h2 className="mb-5 text-xl font-bold sm:mb-6 sm:text-2xl">Machine</h2>
 
                                 <label className="mb-2 block font-semibold">Machine</label>
                                 <input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="Machine name or ID" className={`${inputClass} mb-5`} />
@@ -252,9 +254,9 @@ export default function Home() {
 
                     {page === "History" && (
                         <section>
-                            <h1 className="mb-2 text-3xl font-bold">History</h1>
-                            <p className={`mb-8 ${muted}`}>Your past scans will show up here.</p>
-                            <div className={`rounded-3xl p-6 shadow-md ${secondary}`}>
+                            <h1 className="mb-2 text-2xl font-bold sm:text-3xl">History</h1>
+                            <p className={`mb-6 text-sm sm:mb-8 sm:text-base ${muted}`}>Your past scans will show up here.</p>
+                            <div className={`rounded-3xl p-5 shadow-md sm:p-6 ${secondary}`}>
                                 <p className={muted}>Nothing to display yet.</p>
                             </div>
                         </section>
@@ -262,10 +264,10 @@ export default function Home() {
 
                     {page === "Account" && (
                         <section>
-                            <h1 className="mb-2 text-3xl font-bold">Account</h1>
-                            <p className={`mb-8 ${muted}`}>Manage your profile and appearance.</p>
-                            <div className={`flex items-center justify-between gap-4 rounded-3xl p-6 shadow-md ${secondary}`}>
-                                <div>
+                            <h1 className="mb-2 text-2xl font-bold sm:text-3xl">Account</h1>
+                            <p className={`mb-6 text-sm sm:mb-8 sm:text-base ${muted}`}>Manage your profile and appearance.</p>
+                            <div className={`flex items-center justify-between gap-4 rounded-3xl p-5 shadow-md sm:p-6 ${secondary}`}>
+                                <div className="min-w-0">
                                     <p className="font-semibold">{dark ? "Dark Mode" : "Light Mode"}</p>
                                     <p className={`text-sm ${muted}`}>Choose how your dashboard looks.</p>
                                 </div>
@@ -284,13 +286,13 @@ export default function Home() {
             </div>
 
             {/* MOBILE NAVIGATION (clock / plus / person, like the mockup) */}
-            <nav className={`fixed bottom-3 left-3 right-3 z-50 flex items-center justify-around rounded-3xl p-4 shadow-2xl backdrop-blur-lg md:hidden ${panel}`}>
+            <nav className={`fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-3 z-50 mx-auto flex max-w-md items-center justify-around gap-2 rounded-3xl p-3 shadow-2xl backdrop-blur-lg md:hidden ${panel}`}>
                 {navItems.map((item) => (
                     <button
                         key={item.name}
                         onClick={() => setPage(item.name)}
                         aria-label={item.name}
-                        className={`rounded-2xl px-6 py-2 transition-all duration-300 hover:scale-125 hover:shadow-lg ${
+                        className={`flex min-h-12 flex-1 items-center justify-center rounded-2xl px-4 py-2 transition-all duration-300 hover:scale-110 hover:shadow-lg active:scale-95 ${
                             page === item.name ? "bg-blue-900 text-white" : "text-blue-950 hover:bg-blue-100"
                         }`}
                     >
