@@ -4,11 +4,15 @@ import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 
 const CameraCapture = () => {
+  const API_URL = "http://localhost:3000/api/v1/ocr/";
+
   const webcamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
 
-  const [imgSrc, setImgSrc] = useState(null);
-  const [videoSrc, setVideoSrc] = useState(null);
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
 
   // --- Photo Capture Logic ---
@@ -35,8 +39,11 @@ const CameraCapture = () => {
 
     mediaRecorder.onstop = () => {
       const blob = new Blob(localChunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      setVideoSrc(url);
+      setVideoBlob(blob);
+
+      // const url = URL.createObjectURL(blob);
+      setVideoSrc(URL.createObjectURL(blob)); // Save URL for preview
+
     };
 
     mediaRecorderRef.current = mediaRecorder;
@@ -54,6 +61,41 @@ const CameraCapture = () => {
     setVideoSrc(null);
   };
 
+  const handleSUbmit = async () => {
+    console.log("HandleSubmit called");
+
+    try {
+        const formData = new FormData();
+        if (imgSrc) {
+            const resp = await fetch(imgSrc);
+            const blob = await resp.blob();
+
+            formData.append('file', blob, "captured-photo.jpg")
+        } else if(videoBlob) {
+            formData.append('file', videoBlob, 'recorded-video.webm');
+        } else {
+            console.log("No file to upload");
+            return;
+        }        
+
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: formData, 
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            alert('Upload successful!');
+        } else {
+            alert('Upload failed: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+    } finally {
+        setUploading(false);
+    }
+  }
+
   return (
     <div style={{ textAlign: 'center', marginTop: '20px' }}>
       {/* View: Captured Photo Preview */}
@@ -62,7 +104,9 @@ const CameraCapture = () => {
           <h3>Captured Photo</h3>
           <img src={imgSrc} alt="webcam snapshot" style={{ maxWidth: '100%', borderRadius: '8px' }} />
           <br /><br />
-          <button onClick={retake}>Take Another / Retake</button>
+          <button onClick={retake}>Retake</button>
+          <br/>
+          <button onClick={handleSUbmit}>Upload</button>
         </div>
       )}
 
@@ -74,9 +118,9 @@ const CameraCapture = () => {
           <br /><br />
           <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
             <a href={videoSrc} download="recorded-video.webm">
-              <button>Download Video</button>
+              <button onClick={handleSUbmit}>Upload</button>
             </a>
-            <button onClick={retake}>Take Another / Retake</button>
+            <button onClick={retake}>Retake</button>
           </div>
         </div>
       )}
