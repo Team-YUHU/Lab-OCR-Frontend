@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CSV_COLUMNS } from '../label-csv';
+import Link from 'next/link';
+import { CheckIcon, XIcon } from 'lucide-react';
+import { CSV_COLUMNS, todayLocal } from '../label-csv';
+import { CategoryField, type Category } from '../file-upload/category-field';
 
 // Plain types, because the OCR route rejects any type with a codecs suffix.
 // iOS Safari only records MP4.
@@ -12,6 +15,10 @@ const RECORDING_FORMATS = [
 
 type Phase = 'starting' | 'ready' | 'recording' | 'uploading' | 'done';
 type OcrResult = { labelType: string | null; fields: Record<string, string> };
+type SaveState =
+	| { status: 'idle' | 'saving' }
+	| { status: 'saved'; vialId: string }
+	| { status: 'error'; message: string };
 
 function cameraErrorMessage(caught: unknown) {
 	const name = caught instanceof Error ? caught.name : '';
@@ -41,6 +48,9 @@ export default function CameraPage() {
 	const [cameraError, setCameraError] = useState<string | null>(null);
 	const [uploadError, setUploadError] = useState<string | null>(null);
 	const [result, setResult] = useState<OcrResult | null>(null);
+	const [category, setCategory] = useState<Category | null>(null);
+	const [addingCategory, setAddingCategory] = useState(false);
+	const [save, setSave] = useState<SaveState>({ status: 'idle' });
 
 	useEffect(() => {
 		let cancelled = false;
@@ -144,10 +154,36 @@ export default function CameraPage() {
 		setPhase('recording');
 	}
 
+	async function saveToInventory() {
+		if (!result) return;
+		setSave({ status: 'saving' });
+		try {
+			const response = await fetch('/api/v1/vials', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					categoryId: category?.id ?? null,
+					fields: { ...result.fields, dateReceived: todayLocal() },
+					labelType: result.labelType,
+					fileName: recording?.name ?? null,
+				}),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				setSave({ status: 'error', message: data.error ?? 'Could not save the vial.' });
+				return;
+			}
+			setSave({ status: 'saved', vialId: data.vial.id });
+		} catch {
+			setSave({ status: 'error', message: 'Could not reach the server. Please try again.' });
+		}
+	}
+
 	function recordAgain() {
 		setRecording(null);
 		setResult(null);
 		setUploadError(null);
+		setSave({ status: 'idle' });
 		setElapsed(0);
 		setPhase('ready');
 	}
@@ -155,7 +191,7 @@ export default function CameraPage() {
 	const isRecording = phase === 'recording';
 
 	return (
-		<main className="fixed inset-0 flex flex-col bg-black text-white">
+		<main className="fixed inset-0 z-50 flex flex-col bg-black text-white">
 			<video
 				ref={videoRef}
 				autoPlay
@@ -165,11 +201,18 @@ export default function CameraPage() {
 				className="absolute inset-0 h-full w-full object-cover"
 			/>
 
-			<div className="relative flex justify-center p-4">
+			<div className="relative flex items-center justify-center p-4">
+				<Link
+					href="/"
+					aria-label="Close the camera"
+					className="absolute left-4 flex size-10 items-center justify-center rounded-full bg-black/40 backdrop-blur hover:bg-black/60"
+				>
+					<XIcon className="size-5" aria-hidden />
+				</Link>
 				{(isRecording || phase === 'ready') && (
 					<span
 						role="timer"
-						className={`rounded-md px-2 py-1 font-mono text-lg tabular-nums ${
+						className={`rounded-full px-3 py-1 font-mono text-lg tabular-nums backdrop-blur ${
 							isRecording ? 'bg-red-600' : 'bg-black/40'
 						}`}
 					>
@@ -185,7 +228,7 @@ export default function CameraPage() {
 			)}
 
 			{!cameraError && (phase === 'ready' || isRecording) && (
-				<div className="relative mt-auto flex justify-center bg-black/40 py-8">
+				<div className="relative mt-auto flex justify-center bg-gradient-to-t from-black/70 to-transparent pt-12 pb-[calc(2rem+env(safe-area-inset-bottom))]">
 					<button
 						type="button"
 						onClick={() =>
@@ -210,9 +253,13 @@ export default function CameraPage() {
 			)}
 
 			{phase === 'done' && (
-				<div className="absolute inset-0 overflow-y-auto bg-black/90">
+				<div className="absolute inset-0 overflow-y-auto bg-background/95 text-foreground backdrop-blur">
 					<div className="mx-auto flex max-w-md flex-col gap-4 p-6">
-						{uploadError && <p role="alert">{uploadError}</p>}
+						{uploadError && (
+							<p role="alert" className="text-destructive">
+								{uploadError}
+							</p>
+						)}
 
 						{result && (
 							<>
@@ -221,16 +268,54 @@ export default function CameraPage() {
 										? `Read a ${result.labelType} label`
 										: 'Label results'}
 								</h1>
-								<dl className="flex flex-col gap-3">
+								<dl className="grid gap-px overflow-hidden rounded-3xl border bg-border">
 									{CSV_COLUMNS.filter(
 										({ name }) => name !== 'dateReceived',
 									).map(({ name, label }) => (
-										<div key={name}>
-											<dt className="text-sm text-zinc-400">{label}</dt>
+										<div key={name} className="flex flex-col gap-1 bg-card px-5 py-3">
+											<dt className="text-xs text-muted-foreground">{label}</dt>
 											<dd className="font-mono">{result.fields[name] || '—'}</dd>
 										</div>
 									))}
 								</dl>
+
+								{save.status === 'saved' ? (
+									<p
+										role="status"
+										className="flex items-center gap-2 rounded-3xl border bg-card px-5 py-4 text-sm"
+									>
+										<CheckIcon className="size-4 text-green-500" aria-hidden />
+										Saved to {category?.name ?? 'Uncategorized'}.
+										<Link
+											href="/inventory"
+											className="ms-auto font-medium underline-offset-4 hover:underline"
+										>
+											View inventory
+										</Link>
+									</p>
+								) : (
+									<div className="flex flex-col gap-3 rounded-3xl border bg-card p-5">
+										<CategoryField
+											value={category}
+											onChange={setCategory}
+											adding={addingCategory}
+											onAddingChange={setAddingCategory}
+										/>
+										{save.status === 'error' && (
+											<p role="alert" className="text-sm text-destructive">
+												{save.message}
+											</p>
+										)}
+										<button
+											type="button"
+											onClick={saveToInventory}
+											disabled={save.status === 'saving' || addingCategory}
+											className="self-start rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
+										>
+											{save.status === 'saving' ? 'Saving…' : 'Save to inventory'}
+										</button>
+									</div>
+								)}
 							</>
 						)}
 
@@ -239,7 +324,7 @@ export default function CameraPage() {
 								<button
 									type="button"
 									onClick={() => upload(recording)}
-									className="rounded-md bg-white px-4 py-2 font-medium text-black"
+									className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
 								>
 									Try upload again
 								</button>
@@ -247,7 +332,7 @@ export default function CameraPage() {
 							<button
 								type="button"
 								onClick={recordAgain}
-								className="rounded-md border border-white px-4 py-2 font-medium"
+								className="rounded-full border px-5 py-2 text-sm font-medium hover:bg-accent"
 							>
 								Record again
 							</button>
