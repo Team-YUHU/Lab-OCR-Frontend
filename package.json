@@ -10,8 +10,9 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.25",
-    "@google-cloud/vision": "^6.2.0",
+    "@google/genai": "^3.0.0",
     "next": "16.4.5",
+    "openai": "^7.53.0",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
