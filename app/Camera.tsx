@@ -83,7 +83,13 @@ const CameraCapture = () => {
           body: formData, 
         });
 
+        if (!response.ok) {
+            console.error("Unexpected error: " + response.status);
+            return;
+        }
+
         const result = await response.json();
+
         if (result.success) {
             alert('Upload successful!');
         } else {
