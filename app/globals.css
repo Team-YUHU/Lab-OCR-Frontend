@@ -40,6 +40,7 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:focus-visible,
 a:focus-visible {
   outline: 3px solid #90a4ff;
   outline-offset: 4px;
@@ -178,6 +179,7 @@ a:focus-visible {
 .file-card {
   position: relative;
   display: flex;
+  width: 100%;
   min-height: 78px;
   align-items: center;
   gap: 12px;
@@ -185,6 +187,10 @@ a:focus-visible {
   border: 1px solid transparent;
   border-radius: 16px;
   background: #d3d3d4;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
   transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
@@ -197,6 +203,11 @@ a:focus-visible {
   border-color: #b6c1ff;
   background: var(--surface-raised);
   box-shadow: 0 5px 14px #18181813;
+}
+
+.file-card.is-active:hover {
+  border-color: #a9b5ff;
+  background: #ededed;
 }
 
 .file-thumbnail {
