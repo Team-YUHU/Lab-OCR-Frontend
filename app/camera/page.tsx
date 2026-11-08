@@ -1,10 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckIcon, XIcon } from 'lucide-react';
-import { CSV_COLUMNS, todayLocal } from '../label-csv';
-import { CategoryField, type Category } from '../file-upload/category-field';
+import { toast } from 'sonner';
+import { buttonVariants } from '@/components/ui/button';
+import { UploadModal } from '@/components/ui/upload';
+import { UNCATEGORIZED_NAME } from '@/lib/categories';
+import type { Fields } from '../label-csv';
+import type { Category } from '../file-upload/category-field';
+import { uploadVialMedia, type UploadedMedia } from '@/lib/upload-media';
+import {
+	extractScoredFrames,
+	sharpestFrame,
+	stillFromVideo,
+} from '../video-frames';
+import { ReviewForm, type VialDetails } from '../file-upload/review-form';
 
 // Plain types, because the OCR route rejects any type with a codecs suffix.
 // iOS Safari only records MP4.
@@ -14,11 +25,9 @@ const RECORDING_FORMATS = [
 ];
 
 type Phase = 'starting' | 'ready' | 'recording' | 'uploading' | 'done';
-type OcrResult = { labelType: string | null; fields: Record<string, string> };
-type SaveState =
-	| { status: 'idle' | 'saving' }
-	| { status: 'saved'; vialId: string }
-	| { status: 'error'; message: string };
+/** scannedAt is when the label was read, as an ISO timestamp. */
+type OcrResult = { labelType: string | null; fields: Fields; scannedAt: string };
+type Saved = { vialId: string; category: Category | null };
 
 function cameraErrorMessage(caught: unknown) {
 	const name = caught instanceof Error ? caught.name : '';
@@ -41,6 +50,10 @@ export default function CameraPage() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const streamRef = useRef<MediaStream | null>(null);
 	const recorderRef = useRef<MediaRecorder | null>(null);
+	/** The current recording's sharpest frame, started as soon as recording stops. */
+	const stillRef = useRef<{ file: File; still: Promise<File> } | null>(null);
+	/** That frame's copy in Cloudinary, once uploaded. */
+	const uploadedRef = useRef<{ file: File; media: UploadedMedia } | null>(null);
 
 	const [phase, setPhase] = useState<Phase>('starting');
 	const [recording, setRecording] = useState<File | null>(null);
@@ -48,9 +61,8 @@ export default function CameraPage() {
 	const [cameraError, setCameraError] = useState<string | null>(null);
 	const [uploadError, setUploadError] = useState<string | null>(null);
 	const [result, setResult] = useState<OcrResult | null>(null);
-	const [category, setCategory] = useState<Category | null>(null);
-	const [addingCategory, setAddingCategory] = useState(false);
-	const [save, setSave] = useState<SaveState>({ status: 'idle' });
+	const [reviewing, setReviewing] = useState(false);
+	const [saved, setSaved] = useState<Saved | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -109,8 +121,12 @@ export default function CameraPage() {
 			const response = await fetch('/api/v1/ocr', { method: 'POST', body });
 			const data = await response.json();
 
-			if (response.ok) setResult(data);
-			else setUploadError(data.error ?? 'Could not read the label.');
+			if (response.ok) {
+				setResult({ ...data, scannedAt: new Date().toISOString() });
+				setReviewing(true);
+			} else {
+				setUploadError(data.error ?? 'Could not read the label.');
+			}
 		} catch {
 			setUploadError('Could not reach the server. Please try again.');
 		} finally {
@@ -146,6 +162,12 @@ export default function CameraPage() {
 			}
 			setRecording(file);
 			upload(file);
+			// Only a still frame is kept, not the video. Picked while the label is being read.
+			const still = extractScoredFrames(file).then((frames) =>
+				stillFromVideo(file, sharpestFrame(frames)),
+			);
+			still.catch(() => {}); // Reported when the label is saved, not here.
+			stillRef.current = { file, still };
 		};
 
 		recorderRef.current = recorder;
@@ -154,64 +176,120 @@ export default function CameraPage() {
 		setPhase('recording');
 	}
 
-	async function saveToInventory() {
+	async function saveToInventory(
+		fields: Fields,
+		category: Category | null,
+		details: VialDetails,
+	) {
 		if (!result) return;
-		setSave({ status: 'saving' });
+
+		// Keep the sharpest frame in Cloudinary. If that fails the label values still save.
+		let media =
+			recording && uploadedRef.current?.file === recording
+				? uploadedRef.current.media
+				: null;
+		let mediaError: string | null = null;
+		if (recording && !media) {
+			try {
+				const pending = stillRef.current;
+				const still = await (pending?.file === recording
+					? pending.still
+					: extractScoredFrames(recording).then((frames) =>
+							stillFromVideo(recording, sharpestFrame(frames)),
+						));
+				media = await uploadVialMedia(still);
+				// Remembered so a failed save can retry without uploading again.
+				uploadedRef.current = { file: recording, media };
+			} catch (error) {
+				mediaError = (error as Error).message;
+			}
+		}
+
+		let response: Response;
 		try {
-			const response = await fetch('/api/v1/vials', {
+			response = await fetch('/api/v1/vials', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					categoryId: category?.id ?? null,
-					fields: { ...result.fields, dateReceived: todayLocal() },
+					fields,
 					labelType: result.labelType,
 					fileName: recording?.name ?? null,
+					name: details.name,
+					description: details.description,
+					scannedAt: result.scannedAt,
+					media,
 				}),
 			});
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok) {
-				setSave({ status: 'error', message: data.error ?? 'Could not save the vial.' });
-				return;
-			}
-			setSave({ status: 'saved', vialId: data.vial.id });
 		} catch {
-			setSave({ status: 'error', message: 'Could not reach the server. Please try again.' });
+			throw new Error('Could not reach the server. Please try again.');
 		}
+		const data = await response.json().catch(() => null);
+		if (!response.ok) throw new Error(data?.error ?? 'Could not save the vial');
+		setSaved({ vialId: data.vial.id, category });
+		setReviewing(false);
+		if (mediaError) {
+			toast.warning('Label saved without its photo', {
+				description: `A still from the video couldn't be stored: ${mediaError}`,
+			});
+		}
+		toast.success('Label confirmed', {
+			description: category?.name ?? UNCATEGORIZED_NAME,
+			action: (
+				<Link
+					href='/inventory'
+					className={buttonVariants({ size: 'sm', className: 'ms-auto' })}
+				>
+					View inventory
+				</Link>
+			),
+		});
 	}
 
 	function recordAgain() {
 		setRecording(null);
 		setResult(null);
+		setReviewing(false);
 		setUploadError(null);
-		setSave({ status: 'idle' });
+		setSaved(null);
 		setElapsed(0);
 		setPhase('ready');
 	}
 
 	const isRecording = phase === 'recording';
+	const previewUrl = useMemo(
+		() => (recording ? URL.createObjectURL(recording) : null),
+		[recording],
+	);
+	useEffect(
+		() => () => {
+			if (previewUrl) URL.revokeObjectURL(previewUrl);
+		},
+		[previewUrl],
+	);
 
 	return (
-		<main className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+		<main className='fixed inset-0 z-50 flex flex-col bg-black text-white'>
 			<video
 				ref={videoRef}
 				autoPlay
 				muted
 				playsInline
-				aria-label="Camera viewfinder"
-				className="absolute inset-0 h-full w-full object-cover"
+				aria-label='Camera viewfinder'
+				className='absolute inset-0 h-full w-full object-cover'
 			/>
 
-			<div className="relative flex items-center justify-center p-4">
+			<div className='relative flex items-center justify-center p-4'>
 				<Link
-					href="/"
-					aria-label="Close the camera"
-					className="absolute left-4 flex size-10 items-center justify-center rounded-full bg-black/40 backdrop-blur hover:bg-black/60"
+					href='/'
+					aria-label='Close the camera'
+					className='absolute left-4 flex size-10 items-center justify-center rounded-full bg-black/40 backdrop-blur hover:bg-black/60'
 				>
-					<XIcon className="size-5" aria-hidden />
+					<XIcon className='size-5' aria-hidden />
 				</Link>
 				{(isRecording || phase === 'ready') && (
 					<span
-						role="timer"
+						role='timer'
 						className={`rounded-full px-3 py-1 font-mono text-lg tabular-nums backdrop-blur ${
 							isRecording ? 'bg-red-600' : 'bg-black/40'
 						}`}
@@ -222,20 +300,20 @@ export default function CameraPage() {
 			</div>
 
 			{cameraError && (
-				<p role="alert" className="relative m-auto max-w-sm p-6 text-center">
+				<p role='alert' className='relative m-auto max-w-sm p-6 text-center'>
 					{cameraError}
 				</p>
 			)}
 
 			{!cameraError && (phase === 'ready' || isRecording) && (
-				<div className="relative mt-auto flex justify-center bg-gradient-to-t from-black/70 to-transparent pt-12 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+				<div className='relative mt-auto flex justify-center bg-gradient-to-t from-black/70 to-transparent pt-12 pb-[calc(2rem+env(safe-area-inset-bottom))]'>
 					<button
-						type="button"
+						type='button'
 						onClick={() =>
 							isRecording ? recorderRef.current?.stop() : startRecording()
 						}
 						aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-						className="flex size-20 items-center justify-center rounded-full border-4 border-white"
+						className='flex size-20 items-center justify-center rounded-full border-4 border-white'
 					>
 						<span
 							className={`bg-red-600 transition-all ${
@@ -247,96 +325,102 @@ export default function CameraPage() {
 			)}
 
 			{phase === 'uploading' && (
-				<div className="absolute inset-0 flex items-center justify-center bg-black/70">
-					<p role="status">Reading the label…</p>
+				<div className='absolute inset-0 flex items-center justify-center bg-black/70'>
+					<p role='status'>Reading the label…</p>
 				</div>
 			)}
 
 			{phase === 'done' && (
-				<div className="absolute inset-0 overflow-y-auto bg-background/95 text-foreground backdrop-blur">
-					<div className="mx-auto flex max-w-md flex-col gap-4 p-6">
+				<div className='absolute inset-0 overflow-y-auto bg-background/95 text-foreground backdrop-blur'>
+					<div className='mx-auto flex max-w-md flex-col gap-4 p-6'>
 						{uploadError && (
-							<p role="alert" className="text-destructive">
+							<p role='alert' className='text-destructive'>
 								{uploadError}
 							</p>
 						)}
 
 						{result && (
 							<>
-								<h1 className="text-xl font-semibold">
-									{result.labelType
-										? `Read a ${result.labelType} label`
-										: 'Label results'}
+								<h1 className='text-xl font-semibold'>
+									{saved
+										? 'Saved to inventory'
+										: result.labelType
+											? `Read a ${result.labelType} label`
+											: 'Label read'}
 								</h1>
-								<dl className="grid gap-px overflow-hidden rounded-3xl border bg-border">
-									{CSV_COLUMNS.filter(
-										({ name }) => name !== 'dateReceived',
-									).map(({ name, label }) => (
-										<div key={name} className="flex flex-col gap-1 bg-card px-5 py-3">
-											<dt className="text-xs text-muted-foreground">{label}</dt>
-											<dd className="font-mono">{result.fields[name] || '—'}</dd>
-										</div>
-									))}
-								</dl>
 
-								{save.status === 'saved' ? (
+								{saved ? (
 									<p
-										role="status"
-										className="flex items-center gap-2 rounded-3xl border bg-card px-5 py-4 text-sm"
+										role='status'
+										className='flex items-center gap-2 rounded-3xl border bg-card px-5 py-4 text-sm'
 									>
-										<CheckIcon className="size-4 text-green-500" aria-hidden />
-										Saved to {category?.name ?? 'Uncategorized'}.
+										<CheckIcon className='size-4 text-green-500' aria-hidden />
+										Saved to {saved.category?.name ?? UNCATEGORIZED_NAME}.
 										<Link
-											href="/inventory"
-											className="ms-auto font-medium underline-offset-4 hover:underline"
+											href='/inventory'
+											className='ms-auto font-medium underline-offset-4 hover:underline'
 										>
 											View inventory
 										</Link>
 									</p>
 								) : (
-									<div className="flex flex-col gap-3 rounded-3xl border bg-card p-5">
-										<CategoryField
-											value={category}
-											onChange={setCategory}
-											adding={addingCategory}
-											onAddingChange={setAddingCategory}
-										/>
-										{save.status === 'error' && (
-											<p role="alert" className="text-sm text-destructive">
-												{save.message}
-											</p>
-										)}
+									<p className='text-sm text-muted-foreground'>
+										This label hasn&apos;t been saved yet.
+									</p>
+								)}
+
+								<div className='flex gap-3'>
+									<button
+										type='button'
+										onClick={recordAgain}
+										className='rounded-full border px-5 py-2 text-sm font-medium hover:bg-accent'
+									>
+										Record again
+									</button>
+									{!saved && (
 										<button
-											type="button"
-											onClick={saveToInventory}
-											disabled={save.status === 'saving' || addingCategory}
-											className="self-start rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
+											type='button'
+											onClick={() => setReviewing(true)}
+											className='ms-auto rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-foreground/90'
 										>
-											{save.status === 'saving' ? 'Saving…' : 'Save to inventory'}
+											Review label
 										</button>
-									</div>
+									)}
+								</div>
+
+								{recording && previewUrl && (
+									<UploadModal open={reviewing} onOpenChange={setReviewing}>
+										<ReviewForm
+											file={recording}
+											previewUrl={previewUrl}
+											fields={result.fields}
+											category={null}
+											onCancel={() => setReviewing(false)}
+											onConfirm={saveToInventory}
+										/>
+									</UploadModal>
 								)}
 							</>
 						)}
 
-						<div className="flex gap-3">
-							{uploadError && recording && (
+						{uploadError && recording && (
+							<div className='flex gap-3'>
 								<button
-									type="button"
+									type='button'
 									onClick={() => upload(recording)}
-									className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
+									className='rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background'
 								>
 									Try upload again
 								</button>
-							)}
-							<button
-								type="button"
-								onClick={recordAgain}
-								className="rounded-full border px-5 py-2 text-sm font-medium hover:bg-accent"
-							>
-								Record again
-							</button>
-						</div>
+								<button
+									type='button'
+									onClick={recordAgain}
+									className='rounded-full border px-5 py-2 text-sm font-medium hover:bg-accent'
+								>
+									Record again
+								</button>
+							</div>
+						)}
 					</div>
 				</div>
 			)}

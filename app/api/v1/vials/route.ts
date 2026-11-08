@@ -1,4 +1,5 @@
 import { NextResponse, connection, type NextRequest } from 'next/server';
+import { currentUser } from '@clerk/nextjs/server';
 import {
 	createVial,
 	databaseError,
@@ -39,8 +40,22 @@ export async function POST(request: Request) {
 		return NextResponse.json({ error: parsed.error }, { status: 400 });
 	}
 
+	// The author always comes from the session, never from the request body.
+	const user = await currentUser();
+	if (!user) {
+		return NextResponse.json({ error: 'Sign in to save vials' }, { status: 401 });
+	}
+	const author = {
+		userId: user.id,
+		name:
+			user.fullName ||
+			user.username ||
+			user.primaryEmailAddress?.emailAddress ||
+			null,
+	};
+
 	try {
-		const vial = await createVial(parsed.input);
+		const vial = await createVial(parsed.input, author);
 		return NextResponse.json({ vial }, { status: 201 });
 	} catch (error) {
 		return databaseError('Could not save the vial', error);

@@ -108,6 +108,25 @@ function sizeCanvas(
  * so a tube turned on camera still has every side covered.
  */
 export async function extractFrames(file: File) {
+	return (await extractScoredFrames(file)).map(({ frame }) => frame);
+}
+
+/** The single sharpest of those frames: the still kept for a video vial. */
+export function sharpestFrame(frames: ScoredFrame[]) {
+	return frames.reduce((best, next) => (next.score > best.score ? next : best))
+		.frame;
+}
+
+export type ScoredFrame = { frame: Blob; score: number };
+
+/** A frame as a JPEG file named after its video, e.g. recording.webm → recording.jpg. */
+export function stillFromVideo(video: File, frame: Blob) {
+	const base = video.name.replace(/\.[^.]+$/, '') || 'video';
+	return new File([frame], `${base}.jpg`, { type: 'image/jpeg' });
+}
+
+/** The same frames as extractFrames, with how sharp each one is. */
+export async function extractScoredFrames(file: File): Promise<ScoredFrame[]> {
 	const url = URL.createObjectURL(file);
 	const video = document.createElement('video');
 	video.muted = true;
@@ -135,7 +154,7 @@ export async function extractFrames(file: File) {
 		const scoreContext = getContext(scoreCanvas);
 
 		const sampleCount = FRAME_COUNT * SAMPLES_PER_FRAME;
-		const frames: Blob[] = [];
+		const frames: ScoredFrame[] = [];
 
 		for (let section = 0; section < FRAME_COUNT; section++) {
 			let best: { score: number; frame: Blob } | null = null;
@@ -165,7 +184,7 @@ export async function extractFrames(file: File) {
 				}
 			}
 
-			if (best) frames.push(best.frame);
+			if (best) frames.push(best);
 		}
 
 		return frames;

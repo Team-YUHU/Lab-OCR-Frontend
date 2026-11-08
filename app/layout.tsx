@@ -1,4 +1,4 @@
-// import { ClerkProvider } from '@clerk/nextjs';
+import { ClerkProvider, Show } from '@clerk/nextjs';
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -12,6 +12,7 @@ import {
 	CurrentSidebarNav,
 	SidebarNav,
 } from '@/components/app-nav';
+import { AccountMenu } from '@/components/account-menu';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
@@ -43,58 +44,79 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<'/'>) {
 	return (
 		<html
-			lang="en"
+			lang='en'
 			suppressHydrationWarning
 			className={`${geistSans.variable} ${geistMono.variable} ${minecraft.variable} h-full antialiased`}
 		>
-			<body className="flex min-h-full">
-				<ThemeProvider
-					attribute="class"
-					defaultTheme="dark"
-					disableTransitionOnChange
-					enableSystem={false}
-					themes={['light', 'dark', 'retro', 'mgr']}
-				>
-					<aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r bg-sidebar p-3 md:flex">
-						<Link
-							href="/"
-							className="flex items-center gap-2.5 px-2 pt-2 text-[15px] font-semibold tracking-tight"
-						>
-							<Image
-								src="/mrg-logo.png"
-								alt="MRG Laboratories"
-								width={60}
-								height={36}
-								className="h-9 w-[60px] shrink-0 object-contain"
-								priority
-							/>
-							MRG Labs
-						</Link>
+			<body className='flex min-h-full'>
+				<ClerkProvider>
+					<ThemeProvider
+						attribute='class'
+						defaultTheme='dark'
+						disableTransitionOnChange
+						enableSystem={false}
+						themes={['light', 'dark', 'retro', 'mgr']}
+					>
+						{/*
+						  The app's navigation is only for signed-in people. Signed out, the proxy
+						  only serves the sign-in page, which stands on its own.
+						  Show reads the session per request, so it streams in after the static shell.
+						*/}
+						<Suspense>
+							<Show when='signed-in'>
+								<aside className='sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r bg-sidebar p-3 md:flex'>
+									<Link
+										href='/'
+										className='flex items-center gap-2.5 px-2 pt-2 text-[15px] font-semibold tracking-tight'
+									>
+										<Image
+											src='/mrg-logo.png'
+											alt='MRG Laboratories'
+											width={60}
+											height={36}
+											className='h-9 w-15 shrink-0 object-contain'
+											priority
+										/>
+										MRG Labs
+									</Link>
 
-						<Link
-							href="/camera"
-							className="flex items-center gap-3 rounded-full border px-3 py-2 text-sm transition-colors hover:bg-accent"
-						>
-							<SquarePenIcon className="size-4" aria-hidden />
-							New scan
-						</Link>
+									<Link
+										href='/camera'
+										className='flex items-center gap-3 rounded-full border px-3 py-2 text-sm transition-colors hover:bg-accent'
+									>
+										<SquarePenIcon className='size-4' aria-hidden />
+										New scan
+									</Link>
 
-						<Suspense fallback={<SidebarNav />}>
-							<CurrentSidebarNav />
+									<Suspense fallback={<SidebarNav />}>
+										<CurrentSidebarNav />
+									</Suspense>
+
+									<div className='mt-auto flex flex-col gap-4 px-3 pb-2'>
+										<p className='text-xs text-muted-foreground'>
+											Read sample labels, review them, and keep them in your
+											inventory.
+										</p>
+										<AccountMenu />
+									</div>
+								</aside>
+							</Show>
 						</Suspense>
 
-						<p className="mt-auto px-3 pb-2 text-xs text-muted-foreground">
-							Read sample labels, review them, and keep them in your inventory.
-						</p>
-					</aside>
+						<div className='flex min-w-0 flex-1 flex-col pb-20 md:pb-0'>
+							{children}
+						</div>
 
-					<div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">{children}</div>
-
-					<Suspense fallback={<BottomNav />}>
-						<CurrentBottomNav />
-					</Suspense>
-					<Toaster />
-				</ThemeProvider>
+						<Suspense>
+							<Show when='signed-in'>
+								<Suspense fallback={<BottomNav />}>
+									<CurrentBottomNav />
+								</Suspense>
+							</Show>
+						</Suspense>
+						<Toaster />
+					</ThemeProvider>
+				</ClerkProvider>
 			</body>
 		</html>
 	);

@@ -8,6 +8,8 @@ import {
 	CameraIcon,
 	ChevronDownIcon,
 	DownloadIcon,
+	ExternalLinkIcon,
+	ImageIcon,
 	FlaskConicalIcon,
 	FolderIcon,
 	LoaderCircleIcon,
@@ -31,7 +33,9 @@ const byName = (a: Category, b: Category) =>
 	a.name.toLowerCase().localeCompare(b.name.toLowerCase());
 
 function vialTitle(vial: Vial) {
-	return vial.fields.sampleId || vial.fileName || `Vial #${vial.id}`;
+	return (
+		vial.name || vial.fields.sampleId || vial.fileName || `Vial #${vial.id}`
+	);
 }
 
 function vialSubtitle(vial: Vial) {
@@ -60,6 +64,9 @@ function matches(vial: Vial, query: string) {
 		vial.labelType,
 		vial.fileName,
 		vial.categoryName,
+		vial.name,
+		vial.description,
+		vial.createdByName,
 	]
 		.filter(Boolean)
 		.join(' ')
@@ -336,7 +343,7 @@ export function InventoryView() {
 														</span>
 													</span>
 													<span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-														{formatDate(vial.createdAt)}
+														{formatDate(vial.scannedAt ?? vial.createdAt)}
 													</span>
 												</button>
 											</li>
@@ -414,11 +421,46 @@ function VialDetails({
 					<h2 className="truncate text-2xl font-semibold tracking-tight">
 						{vialTitle(vial)}
 					</h2>
+					{vial.name && vial.fields.sampleId && (
+						<p className="truncate font-mono text-sm text-muted-foreground">
+							{vial.fields.sampleId}
+						</p>
+					)}
 				</div>
-				<span className="hidden shrink-0 rounded-full border px-3 py-1 text-xs text-muted-foreground sm:inline">
-					Added {formatDate(vial.createdAt, true)}
-				</span>
 			</div>
+
+			{vial.description && (
+				<p className="text-sm whitespace-pre-line break-words">
+					{vial.description}
+				</p>
+			)}
+
+			<dl className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs text-muted-foreground">Scanned</dt>
+					<dd>
+						{vial.scannedAt ? (
+							formatDate(vial.scannedAt, true)
+						) : (
+							<span className="text-muted-foreground">Not recorded</span>
+						)}
+					</dd>
+				</div>
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs text-muted-foreground">Added by</dt>
+					<dd>
+						{vial.createdByName ?? (
+							<span className="text-muted-foreground">Unknown</span>
+						)}
+					</dd>
+				</div>
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs text-muted-foreground">Added</dt>
+					<dd>{formatDate(vial.createdAt, true)}</dd>
+				</div>
+			</dl>
+
+			<VialMedia vial={vial} />
 
 			<dl className="grid gap-px overflow-hidden rounded-3xl border bg-border sm:grid-cols-2">
 				{CSV_COLUMNS.map(({ name, label }) => (
@@ -473,6 +515,50 @@ function VialDetails({
 				)}
 			</div>
 		</div>
+	);
+}
+
+/** The photo the label was read from, or a still from its video. For reference only: it can't be changed. */
+function VialMedia({ vial }: { vial: Vial }) {
+	const { media } = vial;
+	const fromVideo = /\.(mp4|webm|mov|m4v)$/i.test(vial.fileName ?? '');
+	const heading = fromVideo ? 'Still from the video' : 'Original photo';
+
+	return (
+		<section aria-label={heading} className="flex flex-col gap-3 rounded-3xl border bg-card p-4">
+			<div className="flex items-center justify-between gap-3 px-1">
+				<h3 className="flex items-center gap-2 text-sm font-medium">
+					<ImageIcon className="size-4 text-muted-foreground" aria-hidden />
+					{heading}
+				</h3>
+				{media && (
+					<a
+						href={media.url}
+						target="_blank"
+						rel="noreferrer"
+						className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+					>
+						Open
+						<ExternalLinkIcon className="size-3.5" aria-hidden />
+					</a>
+				)}
+			</div>
+			{media ? (
+				// Served from Cloudinary's domain, which next/image isn't set up for.
+				// eslint-disable-next-line @next/next/no-img-element
+				<img
+					// Remounts when another vial is picked, so the old image doesn't linger while loading.
+					key={media.url}
+					src={media.url}
+					alt={`${heading} of ${vialTitle(vial)}`}
+					className="max-h-80 w-full rounded-2xl bg-muted object-contain"
+				/>
+			) : (
+				<p className="px-1 pb-1 text-sm text-muted-foreground">
+					No photo was kept for this vial.
+				</p>
+			)}
+		</section>
 	);
 }
 
