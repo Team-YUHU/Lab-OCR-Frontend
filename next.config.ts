@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
 		'ffprobe-static',
 		'zxing-wasm',
 	],
+	// Sign-up is closed: accounts are added in Clerk by an admin.
+	async redirects() {
+		return [
+			{ source: '/sign-up', destination: '/sign-in', permanent: false },
+			{ source: '/sign-up/:path*', destination: '/sign-in', permanent: false },
+		];
+	},
 	cacheComponents: true,
 	partialPrefetching: true,
 	turbopack: {

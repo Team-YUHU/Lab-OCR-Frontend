@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { CheckIcon, MonitorCogIcon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { AccountCard } from "@/components/account-menu";
 
 const themes = [
   {
@@ -49,6 +50,8 @@ export default function SettingsPage() {
           Personalize the look and feel of your workspace.
         </p>
       </header>
+
+      <AccountCard />
 
       <section
         aria-labelledby="appearance-heading"

@@ -2,6 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import type { FieldName, Fields } from '@/app/label-csv';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_NAME } from './categories';
+import {
+	deleteVialMedia,
+	parseVialMedia,
+	type MediaType,
+	type VialMedia,
+} from './cloudinary';
 import { getDb } from './db';
 
 // Column names and limits match the vials table. Blank fields are stored as NULL.
@@ -19,6 +25,11 @@ const COLUMNS = FIELD_NAMES.map((name) => FIELD_COLUMNS[name].column);
 const MAX_LABEL_TYPE = 20;
 const MAX_FILE_NAME = 255;
 const MAX_VIAL_ID = 2_147_483_647; // vials.id is an integer column
+const MAX_NAME = 100;
+const MAX_DESCRIPTION = 1000;
+const MAX_AUTHOR_NAME = 200;
+// A little slack for a phone whose clock runs ahead of the server's.
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export type Vial = {
 	id: string;
@@ -28,6 +39,15 @@ export type Vial = {
 	fields: Fields;
 	labelType: string | null;
 	fileName: string | null;
+	/** Optional, set by people. Not CSV columns. */
+	name: string | null;
+	description: string | null;
+	/** When the label was read. Null for vials saved before this was recorded. */
+	scannedAt: string | null;
+	/** Who added the vial, as their name was then. Null for vials saved before sign-in. */
+	createdByName: string | null;
+	/** The original recording or photo in Cloudinary. Null when none was kept. */
+	media: { resourceType: MediaType; url: string } | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -37,13 +57,29 @@ export type VialInput = {
 	fields: Fields;
 	labelType: string | null;
 	fileName: string | null;
+	name: string | null;
+	description: string | null;
+	/** Null means now. Only used when the vial is first saved. */
+	scannedAt: string | null;
+	/** The uploaded recording or photo. Only used when the vial is first saved. */
+	media: VialMedia | null;
 };
+
+/** The signed-in person saving a vial. */
+export type Author = { userId: string; name: string | null };
 
 const selectFrom = (source: string) => `
 	SELECT v.id, v.category_id, c.name AS category_name, v.label_type, v.file_name,
+		v.name, v.description, v.scanned_at, v.created_by_name,
+		v.media_resource_type, v.media_url,
 		v.created_at, v.updated_at, ${COLUMNS.map((column) => `v.${column}`).join(', ')}
 	FROM ${source} v
 	LEFT JOIN categories c ON c.id = v.category_id`;
+
+// pg returns timestamptz columns as Dates.
+function toIso(value: unknown) {
+	return value instanceof Date ? value.toISOString() : (value as string | null);
+}
 
 function toVial(row: Record<string, unknown>): Vial {
 	return {
@@ -58,6 +94,16 @@ function toVial(row: Record<string, unknown>): Vial {
 		) as Fields,
 		labelType: row.label_type as string | null,
 		fileName: row.file_name as string | null,
+		name: row.name as string | null,
+		description: row.description as string | null,
+		scannedAt: toIso(row.scanned_at),
+		createdByName: row.created_by_name as string | null,
+		media: row.media_url
+			? {
+					resourceType: row.media_resource_type as MediaType,
+					url: row.media_url as string,
+				}
+			: null,
 		createdAt: row.created_at as string,
 		updatedAt: row.updated_at as string,
 	};
@@ -105,10 +151,16 @@ export function parseVialInput(
 	if (typeof body !== 'object' || body === null) {
 		return { error: 'Send a JSON object' };
 	}
-	const { categoryId, fields, labelType, fileName } = body as Record<
-		string,
-		unknown
-	>;
+	const {
+		categoryId,
+		fields,
+		labelType,
+		fileName,
+		name,
+		description,
+		scannedAt,
+		media,
+	} = body as Record<string, unknown>;
 
 	const category = parseVialCategory(categoryId);
 	if ('error' in category) return category;
@@ -131,6 +183,14 @@ export function parseVialInput(
 	if (type.error !== undefined) return { error: type.error };
 	const file = cleanText(fileName, 'fileName', MAX_FILE_NAME);
 	if (file.error !== undefined) return { error: file.error };
+	const title = cleanText(name, 'name', MAX_NAME);
+	if (title.error !== undefined) return { error: title.error };
+	const notes = cleanText(description, 'description', MAX_DESCRIPTION);
+	if (notes.error !== undefined) return { error: notes.error };
+	const scanned = parseScannedAt(scannedAt);
+	if ('error' in scanned) return scanned;
+	const upload = parseVialMedia(media);
+	if ('error' in upload) return upload;
 
 	return {
 		input: {
@@ -138,8 +198,24 @@ export function parseVialInput(
 			fields: cleaned,
 			labelType: type.text || null,
 			fileName: file.text || null,
+			name: title.text || null,
+			description: notes.text || null,
+			scannedAt: scanned.scannedAt,
+			media: upload.media,
 		},
 	};
+}
+
+/** An ISO timestamp from the client, or null for now. A time in the future is refused. */
+function parseScannedAt(
+	value: unknown,
+): { scannedAt: string | null } | { error: string } {
+	if (value === undefined || value === null) return { scannedAt: null };
+	const time = typeof value === 'string' ? Date.parse(value) : NaN;
+	if (Number.isNaN(time) || time > Date.now() + CLOCK_SKEW_MS) {
+		return { error: 'scannedAt must be a past date and time' };
+	}
+	return { scannedAt: new Date(time).toISOString() };
 }
 
 const fieldValues = (fields: Fields) =>
@@ -168,44 +244,81 @@ export async function getVial(id: string) {
 	return rows[0] ? toVial(rows[0]) : null;
 }
 
-export async function createVial({
-	categoryId,
-	fields,
-	labelType,
-	fileName,
-}: VialInput) {
-	const placeholders = COLUMNS.map((_, index) => `$${index + 5}`).join(', ');
+export async function createVial(
+	{
+		categoryId,
+		fields,
+		labelType,
+		fileName,
+		name,
+		description,
+		scannedAt,
+		media,
+	}: VialInput,
+	author: Author,
+) {
+	const placeholders = COLUMNS.map((_, index) => `$${index + 13}`).join(', ');
 	const { rows } = await getDb().query(
 		`WITH saved AS (
-			INSERT INTO vials (vial_id, category_id, label_type, file_name, ${COLUMNS.join(', ')})
-			VALUES ($1, $2, $3, $4, ${placeholders})
+			INSERT INTO vials (vial_id, category_id, label_type, file_name, name, description,
+				scanned_at, created_by, created_by_name,
+				media_public_id, media_resource_type, media_url, ${COLUMNS.join(', ')})
+			VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()), $8, $9,
+				$10, $11, $12, ${placeholders})
 			RETURNING *
 		) ${selectFrom('saved')}`,
-		// vial_id is required by the table, and labels don't carry one of their own.
-		[randomUUID(), categoryId, labelType, fileName, ...fieldValues(fields)],
+		[
+			// vial_id is required by the table, and labels don't carry one of their own.
+			randomUUID(),
+			categoryId,
+			labelType,
+			fileName,
+			name,
+			description,
+			scannedAt,
+			author.userId,
+			author.name?.slice(0, MAX_AUTHOR_NAME) ?? null,
+			media?.publicId ?? null,
+			media?.resourceType ?? null,
+			media?.url ?? null,
+			...fieldValues(fields),
+		],
 	);
 	return toVial(rows[0]);
 }
 
-/** Replaces the vial's values. An omitted labelType or fileName keeps the current one. */
+/**
+ * Replaces the vial's values. An omitted labelType or fileName keeps the current one.
+ * The scan time, author and media stay as they were when the vial was first saved.
+ */
 export async function updateVial(
 	id: string,
-	{ categoryId, fields, labelType, fileName }: VialInput,
+	{ categoryId, fields, labelType, fileName, name, description }: VialInput,
 ) {
 	const assignments = COLUMNS.map(
-		(column, index) => `${column} = $${index + 5}`,
+		(column, index) => `${column} = $${index + 7}`,
 	).join(', ');
 	const { rows } = await getDb().query(
 		`WITH saved AS (
 			UPDATE vials SET category_id = $2,
 				label_type = COALESCE($3, label_type),
 				file_name = COALESCE($4, file_name),
+				name = $5,
+				description = $6,
 				${assignments},
 				updated_at = now()
 			WHERE id = $1
 			RETURNING *
 		) ${selectFrom('saved')}`,
-		[id, categoryId, labelType, fileName, ...fieldValues(fields)],
+		[
+			id,
+			categoryId,
+			labelType,
+			fileName,
+			name,
+			description,
+			...fieldValues(fields),
+		],
 	);
 	return rows[0] ? toVial(rows[0]) : null;
 }
@@ -223,11 +336,16 @@ export async function moveVial(id: string, categoryId: string | null) {
 	return rows[0] ? toVial(rows[0]) : null;
 }
 
+/** Deletes the vial, then its recording or photo in Cloudinary. */
 export async function deleteVial(id: string) {
-	const { rowCount } = await getDb().query('DELETE FROM vials WHERE id = $1', [
-		id,
-	]);
-	return rowCount === 1;
+	const { rows } = await getDb().query(
+		'DELETE FROM vials WHERE id = $1 RETURNING media_public_id, media_resource_type',
+		[id],
+	);
+	if (!rows[0]) return false;
+	const { media_public_id: publicId, media_resource_type: resourceType } = rows[0];
+	if (publicId) await deleteVialMedia(publicId, resourceType);
+	return true;
 }
 
 /** The response for a failed query. Details go to the server log, not the client. */

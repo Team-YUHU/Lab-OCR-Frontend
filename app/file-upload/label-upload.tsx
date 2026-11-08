@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
 	localAdapter,
@@ -12,8 +12,6 @@ import { useFilePreview, useUploadContext } from '@uploadcn/react';
 import { CheckIcon, CircleAlertIcon, ScanTextIcon, XIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
 	NativeButton,
 	Upload,
@@ -34,15 +32,21 @@ import {
 	UploadModalTitle,
 } from '@/components/ui/upload';
 import { UNCATEGORIZED_NAME } from '@/lib/categories';
-import {
-	CSV_COLUMNS,
-	todayLocal,
-	type FieldName,
-	type Fields,
-} from '../label-csv';
+import type { Fields } from '../label-csv';
+import { uploadVialMedia, type UploadedMedia } from '@/lib/upload-media';
 import { mergeFrameResults, type FrameResult } from '../label-merge';
-import { CategoryField, type Category } from './category-field';
-import { extractFrames, isVideoFile } from '../video-frames';
+import type { Category } from './category-field';
+import {
+	ReviewForm,
+	type Alternatives,
+	type VialDetails,
+} from './review-form';
+import {
+	extractScoredFrames,
+	isVideoFile,
+	sharpestFrame,
+	stillFromVideo,
+} from '../video-frames';
 
 const ACCEPT =
 	'image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime,.mov,.m4v';
@@ -52,7 +56,6 @@ const MAX_FILES = 20;
 // Files stay in the browser and only go to the OCR route. Confirmed values go to the database.
 const adapter = localAdapter();
 
-type Alternatives = Partial<Record<FieldName, string[]>>;
 type LabelRead = {
 	fields: Fields;
 	alternatives: Alternatives;
@@ -61,6 +64,14 @@ type LabelRead = {
 	category: Category | null;
 	/** The saved row, once confirmed. Editing updates it rather than adding another. */
 	vialId: string | null;
+	/** When the label was read, as an ISO timestamp. */
+	scannedAt: string;
+	/** Optional name and description. Not CSV columns. */
+	details: VialDetails;
+	/** What gets kept in Cloudinary: the photo itself, or a video's sharpest frame. */
+	still: File;
+	/** That still's copy in Cloudinary, once uploaded. Kept so a retry doesn't upload it twice. */
+	media: UploadedMedia | null;
 };
 
 /** Saves a confirmed label and returns the vial's id. Throws with a message to show. */
@@ -69,8 +80,10 @@ async function saveVial(
 	label: LabelRead,
 	fields: Fields,
 	category: Category | null,
+	details: VialDetails,
+	media: UploadedMedia | null,
 ): Promise<string> {
-	const { vialId, labelType } = label;
+	const { vialId, labelType, scannedAt } = label;
 	let response: Response;
 	try {
 		response = await fetch(`/api/v1/vials${vialId ? `/${vialId}` : ''}`, {
@@ -81,6 +94,11 @@ async function saveVial(
 				fields,
 				labelType,
 				fileName: item.file.name.slice(0, 255),
+				name: details.name,
+				description: details.description,
+				scannedAt,
+				// Only a new vial takes media; an edit keeps what it has.
+				media: vialId ? undefined : media,
 			}),
 		});
 	} catch {
@@ -94,7 +112,8 @@ async function saveVial(
 /** Reads a label through the OCR route. */
 async function readLabel(file: File, signal: AbortSignal): Promise<LabelRead> {
 	const isVideo = isVideoFile(file);
-	const images: Blob[] = isVideo ? await extractFrames(file) : [file];
+	const frames = isVideo ? await extractScoredFrames(file) : [];
+	const images: Blob[] = isVideo ? frames.map(({ frame }) => frame) : [file];
 
 	const results: FrameResult[] = [];
 	let lastError: string | null = null;
@@ -126,6 +145,10 @@ async function readLabel(file: File, signal: AbortSignal): Promise<LabelRead> {
 		labelType,
 		category: null,
 		vialId: null,
+		scannedAt: new Date().toISOString(),
+		details: { name: '', description: '' },
+		still: isVideo ? stillFromVideo(file, sharpestFrame(frames)) : file,
+		media: null,
 	};
 }
 
@@ -169,24 +192,29 @@ function getRowStatus(item: UploadItemData): RowStatus {
 
 function StatusDot({ status }: { status: RowStatus }) {
 	if (status === 'failed') {
-		return <CircleAlertIcon aria-hidden className="size-6 text-destructive" />;
+		return <CircleAlertIcon aria-hidden className='size-3 text-destructive' />;
 	}
 	if (status === 'confirmed') {
 		return (
 			<span
 				aria-hidden
-				className="flex size-6 items-center justify-center rounded-full bg-green-500 text-white"
+				className='flex size-3 items-center justify-center rounded-full bg-green-500 text-white'
 			>
-				<CheckIcon className="size-4" strokeWidth={3} />
+				<CheckIcon className='size-3' strokeWidth={3} />
 			</span>
 		);
 	}
 	const color = {
-		queued: 'bg-red-500',
-		reading: 'animate-pulse bg-yellow-400 motion-reduce:animate-none',
-		ready: 'bg-green-500',
+		queued: 'border-red-700 bg-red-500',
+		reading: 'border-yellow-600 bg-yellow-400',
+		ready: 'border-green-700 bg-green-500',
 	}[status];
-	return <span aria-hidden className={`size-6 rounded-full ${color}`} />;
+	return (
+		<span
+			aria-hidden
+			className={`size-2 shrink-0 animate-pulse rounded-full border-[0.5px] motion-reduce:animate-none ${color}`}
+		/>
+	);
 }
 
 /** The photo, or the opening frame of the video. */
@@ -195,18 +223,18 @@ function Snapshot({ file }: { file: File }) {
 	const [unplayable, setUnplayable] = useState(false);
 	const className = 'size-full object-contain';
 
-	let content = <UploadFileIcon className="size-6 text-muted-foreground" />;
+	let content = <UploadFileIcon className='size-6 text-muted-foreground' />;
 	if (url && !isVideoFile(file)) {
 		// A local blob preview, so next/image's optimization doesn't apply.
 		// eslint-disable-next-line @next/next/no-img-element
-		content = <img src={url} alt="" className={className} />;
+		content = <img src={url} alt='' className={className} />;
 	} else if (url && !unplayable) {
 		content = (
 			<video
 				src={`${url}#t=0.1`}
 				muted
 				playsInline
-				preload="metadata"
+				preload='metadata'
 				aria-hidden
 				onError={() => setUnplayable(true)}
 				className={className}
@@ -215,119 +243,9 @@ function Snapshot({ file }: { file: File }) {
 	}
 
 	return (
-		<div className="flex aspect-4/3 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted sm:w-28">
+		<div className='flex aspect-4/3 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted sm:w-28'>
 			{content}
 		</div>
-	);
-}
-
-function ReviewForm({
-	item,
-	label,
-	onCancel,
-	onConfirm,
-}: {
-	item: UploadItemData;
-	label: LabelRead;
-	onCancel: () => void;
-	onConfirm: (fields: Fields, category: Category | null) => Promise<void>;
-}) {
-	const [fields, setFields] = useState<Fields>({
-		...label.fields,
-		dateReceived: label.fields.dateReceived || todayLocal(),
-	});
-	const [category, setCategory] = useState(label.category);
-	const [addingCategory, setAddingCategory] = useState(false);
-	const [saving, setSaving] = useState(false);
-	const [saveError, setSaveError] = useState<string | null>(null);
-	const previewUrl = (item.result as LocalUploadResult).url;
-
-	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (addingCategory || saving) return;
-		setSaving(true);
-		setSaveError(null);
-		try {
-			await onConfirm(fields, category);
-		} catch (error) {
-			setSaveError((error as Error).message);
-			setSaving(false);
-		}
-	}
-
-	return (
-		<>
-			<UploadModalHeader>
-				<UploadModalTitle>Review label</UploadModalTitle>
-				<UploadModalDescription>
-					Check each value against the {isVideoFile(item.file) ? 'video' : 'photo'}{' '}
-					and correct any mistakes.
-				</UploadModalDescription>
-			</UploadModalHeader>
-
-			{isVideoFile(item.file) ? (
-				<video
-					src={previewUrl}
-					controls
-					muted
-					playsInline
-					aria-label={`Video of ${item.file.name}`}
-					className="max-h-56 w-full rounded-lg border"
-				/>
-			) : (
-				// A local blob preview, so next/image's optimization doesn't apply.
-				// eslint-disable-next-line @next/next/no-img-element
-				<img
-					src={previewUrl}
-					alt={`Photo of ${item.file.name}`}
-					className="max-h-56 w-full rounded-lg border object-contain"
-				/>
-			)}
-
-			<form onSubmit={handleSubmit} className="flex flex-col gap-4">
-				<CategoryField
-					value={category}
-					onChange={setCategory}
-					adding={addingCategory}
-					onAddingChange={setAddingCategory}
-				/>
-				<div className="grid gap-3 sm:grid-cols-2">
-					{CSV_COLUMNS.map(({ name, label: fieldLabel }) => (
-						<Label key={name} className="flex-col items-start gap-1.5">
-							{fieldLabel}
-							<Input
-								value={fields[name]}
-								autoComplete="off"
-								className="font-mono"
-								onChange={(event) =>
-									setFields({ ...fields, [name]: event.target.value })
-								}
-							/>
-							{label.alternatives[name] && (
-								<span className="text-xs leading-normal font-normal text-amber-700 dark:text-amber-400">
-									Video frames disagreed. Also read:{' '}
-									{label.alternatives[name].join(', ')}
-								</span>
-							)}
-						</Label>
-					))}
-				</div>
-				{saveError && (
-					<p role="alert" className="text-sm text-destructive">
-						{saveError}
-					</p>
-				)}
-				<UploadModalFooter>
-					<NativeButton variant="outline" onClick={onCancel}>
-						Cancel
-					</NativeButton>
-					{/* Disabled mid-add, so a half-typed category can't save as uncategorized. */}
-					<NativeButton type="submit" disabled={addingCategory || saving}>
-						{saving ? 'Saving…' : 'Confirm'}
-					</NativeButton>
-				</UploadModalFooter>
-			</form>
-		</>
 	);
 }
 
@@ -365,8 +283,8 @@ function DeleteVial({
 	return (
 		<>
 			<NativeButton
-				variant="ghost"
-				size="icon-xs"
+				variant='ghost'
+				size='icon-xs'
 				aria-label={`Delete ${item.file.name}`}
 				onClick={() => setOpen(true)}
 			>
@@ -381,11 +299,11 @@ function DeleteVial({
 					</UploadModalDescription>
 				</UploadModalHeader>
 				<UploadModalFooter>
-					<NativeButton variant="outline" onClick={() => setOpen(false)}>
+					<NativeButton variant='outline' onClick={() => setOpen(false)}>
 						Cancel
 					</NativeButton>
 					<NativeButton
-						variant="destructive"
+						variant='destructive'
 						disabled={deleting}
 						onClick={() => void handleDelete()}
 					>
@@ -412,21 +330,52 @@ function LabelRow({ item }: { item: UploadItemData }) {
 				? `Confirmed · ${label?.category?.name ?? UNCATEGORIZED_NAME}`
 				: STATUS_TEXT[status];
 
-	async function handleConfirm(fields: Fields, category: Category | null) {
+	async function handleConfirm(
+		fields: Fields,
+		category: Category | null,
+		details: VialDetails,
+	) {
 		if (!label) return;
-		const vialId = await saveVial(item, label, fields, category);
+
+		// Keep a copy of the original file the first time it's saved. If that fails,
+		// the label values still save: they matter more than the recording.
+		let media = label.media;
+		let mediaError: string | null = null;
+		if (!label.vialId && !media) {
+			try {
+				media = await uploadVialMedia(label.still);
+				uploader.update(item.id, { meta: { label: { ...label, media } } });
+			} catch (error) {
+				mediaError = (error as Error).message;
+			}
+		}
+
+		const vialId = await saveVial(item, label, fields, category, details, media);
 		uploader.update(item.id, {
 			meta: {
-				label: { ...label, fields, alternatives: {}, category, vialId },
+				label: {
+					...label,
+					fields,
+					alternatives: {},
+					category,
+					vialId,
+					details,
+					media,
+				},
 				confirmed: true,
 			},
 		});
 		setOpen(false);
+		if (mediaError) {
+			toast.warning('Label saved without its photo', {
+				description: `The photo of ${item.file.name} couldn't be stored: ${mediaError}`,
+			});
+		}
 		toast.success('Label confirmed', {
 			description: item.file.name,
 			action: (
 				<Link
-					href="/inventory"
+					href='/inventory'
 					className={buttonVariants({ size: 'sm', className: 'ms-auto' })}
 				>
 					View inventory
@@ -438,14 +387,14 @@ function LabelRow({ item }: { item: UploadItemData }) {
 	return (
 		<UploadItem
 			item={item}
-			className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-3xl p-3 sm:gap-4 sm:p-4"
+			className='grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 rounded-3xl p-3 sm:gap-4 sm:p-4'
 		>
+			<StatusDot status={status} />
 			<Snapshot file={item.file} />
 
-			<div className="flex min-w-0 flex-col items-center gap-1 text-center">
-				<StatusDot status={status} />
+			<div className='flex min-w-0 flex-col items-center gap-1 text-center'>
 				<p
-					aria-live="polite"
+					aria-live='polite'
 					className={
 						status === 'failed'
 							? 'line-clamp-2 text-xs font-medium text-destructive'
@@ -456,15 +405,15 @@ function LabelRow({ item }: { item: UploadItemData }) {
 				</p>
 				<p
 					title={item.file.name}
-					className="w-full truncate text-xs text-muted-foreground"
+					className='w-full truncate text-xs text-muted-foreground'
 				>
 					{item.file.name}
 				</p>
 			</div>
 
-			<div className="flex items-center gap-1">
+			<div className='flex items-center gap-1'>
 				<NativeButton
-					variant="outline"
+					variant='outline'
 					disabled={!canReview}
 					onClick={() => setOpen(true)}
 					className={
@@ -486,8 +435,12 @@ function LabelRow({ item }: { item: UploadItemData }) {
 			{label && (
 				<UploadModal open={open} onOpenChange={setOpen}>
 					<ReviewForm
-						item={item}
-						label={label}
+						file={item.file}
+						previewUrl={(item.result as LocalUploadResult).url}
+						fields={label.fields}
+						alternatives={label.alternatives}
+						category={label.category}
+						details={label.details}
 						onCancel={() => setOpen(false)}
 						onConfirm={handleConfirm}
 					/>
@@ -507,11 +460,11 @@ export function LabelUpload() {
 			maxSize={MAX_BYTES}
 			maxFiles={MAX_FILES}
 			process={readInTurn}
-			className="flex flex-col gap-4"
+			className='flex flex-col gap-4'
 		>
 			<UploadDropzone>
 				<UploadDropzoneHeader>
-					<UploadDropzoneMedia variant="icon">
+					<UploadDropzoneMedia variant='icon'>
 						<ScanTextIcon />
 					</UploadDropzoneMedia>
 					<UploadDropzoneTitle>Drop label photos or videos</UploadDropzoneTitle>
@@ -520,7 +473,7 @@ export function LabelUpload() {
 					</UploadDropzoneDescription>
 				</UploadDropzoneHeader>
 			</UploadDropzone>
-			<UploadList filter={isVisible} className="gap-3">
+			<UploadList filter={isVisible} className='gap-3'>
 				{(item) => <LabelRow key={item.id} item={item} />}
 			</UploadList>
 		</Upload>
