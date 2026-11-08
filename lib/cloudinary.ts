@@ -1,7 +1,11 @@
 import { v2 as cloudinary } from 'cloudinary';
 
+// Either name works: .env.local may use the public-style name for the cloud.
+const CLOUD_NAME =
+    process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_NAME;
+
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    cloud_name: CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
@@ -18,7 +22,7 @@ export type VialMedia = { publicId: string; resourceType: MediaType; url: string
 
 export function isCloudinaryConfigured() {
     return Boolean(
-        process.env.CLOUDINARY_CLOUD_NAME &&
+        CLOUD_NAME &&
             process.env.CLOUDINARY_API_KEY &&
             process.env.CLOUDINARY_API_SECRET,
     );
@@ -32,7 +36,7 @@ export function signVialUpload() {
     const timestamp = Math.round(Date.now() / 1000);
     const params = { timestamp, folder: VIAL_MEDIA_FOLDER };
     return {
-        cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
+        cloudName: CLOUD_NAME!,
         apiKey: process.env.CLOUDINARY_API_KEY!,
         ...params,
         signature: cloudinary.utils.api_sign_request(
@@ -49,7 +53,7 @@ export function signVialUpload() {
 export function parseVialMedia(value: unknown): { media: VialMedia | null } | { error: string } {
     if (value === undefined || value === null) return { media: null };
     const { publicId, resourceType, url } = value as Record<string, unknown>;
-    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+    const cloud = CLOUD_NAME;
     if (
         typeof publicId !== 'string' ||
         typeof url !== 'string' ||
